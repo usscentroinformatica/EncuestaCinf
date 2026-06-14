@@ -1,6 +1,5 @@
 // api/google-script.js
 export default async function handler(req, res) {
-  // Habilitar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -10,42 +9,35 @@ export default async function handler(req, res) {
   }
 
   try {
-    // GET para login o crear hoja
     if (req.method === 'GET') {
-      const scriptUrl = req.query.scriptUrl;
+      const { scriptUrl, action, periodo, email } = req.query;
+      
+      console.log('📥 Parámetros GET recibidos:', { scriptUrl, action, periodo, email });
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'No se proporcionó URL del script' });
       }
       
-      // Construir la URL con los parámetros
-      let url = scriptUrl;
+      let targetUrl = scriptUrl;
       const params = [];
       
-      if (req.query.email) {
-        params.push(`email=${encodeURIComponent(req.query.email)}`);
-      }
-      if (req.query.action) {
-        params.push(`action=${encodeURIComponent(req.query.action)}`);
-      }
-      if (req.query.periodo) {
-        params.push(`periodo=${encodeURIComponent(req.query.periodo)}`);
-      }
+      if (email) params.push(`email=${encodeURIComponent(email)}`);
+      if (action) params.push(`action=${encodeURIComponent(action)}`);
+      if (periodo) params.push(`periodo=${encodeURIComponent(periodo)}`);
       
       if (params.length > 0) {
-        url += `?${params.join('&')}`;
+        targetUrl += `?${params.join('&')}`;
       }
       
-      console.log('📤 GET a:', url);
+      console.log('📤 Redirigiendo a:', targetUrl);
       
-      const response = await fetch(url);
+      const response = await fetch(targetUrl);
       const data = await response.json();
       console.log('📥 Respuesta:', data);
       
       return res.status(200).json(data);
     }
 
-    // POST para enviar formulario o actualizar Base
     if (req.method === 'POST') {
       const { scriptUrl, ...bodyData } = req.body;
       
@@ -54,7 +46,6 @@ export default async function handler(req, res) {
       }
       
       console.log('📤 POST a:', scriptUrl);
-      console.log('📦 Datos:', bodyData);
       
       const response = await fetch(scriptUrl, {
         method: 'POST',
@@ -63,8 +54,6 @@ export default async function handler(req, res) {
       });
       
       const result = await response.json();
-      console.log('📥 Respuesta:', result);
-      
       return res.status(200).json(result);
     }
 

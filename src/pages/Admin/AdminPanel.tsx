@@ -13,7 +13,7 @@ const AdminPanel = () => {
   const [creando, setCreando] = useState(false);
   const [subiendoBase, setSubiendoBase] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
-  const [pasoActual, setPasoActual] = useState(1); // 1=config, 2=crear hoja, 3=actualizar base
+  const [pasoActual, setPasoActual] = useState(1);
 
   useEffect(() => {
     cargarConfiguracion();
@@ -30,13 +30,12 @@ const AdminPanel = () => {
         setGoogleScriptUrl(data.googleScriptUrl || '');
         setPeriodo(data.periodo || '');
         
-        // Determinar en qué paso estamos
         if (data.spreadsheetUrl) {
-          setPasoActual(3); // Ya tiene hoja, puede actualizar base
+          setPasoActual(3);
         } else if (data.googleScriptUrl) {
-          setPasoActual(2); // Tiene URL, puede crear hoja
+          setPasoActual(2);
         } else {
-          setPasoActual(1); // No tiene nada, empezar desde cero
+          setPasoActual(1);
         }
       }
     } catch (error) {
@@ -44,7 +43,6 @@ const AdminPanel = () => {
     }
   };
 
-  // PASO 1: Configurar URL manualmente
   const guardarConfiguracion = async () => {
     if (!googleScriptUrl.trim()) {
       setMensaje('❌ Ingresa la URL del Google Apps Script');
@@ -75,7 +73,7 @@ const AdminPanel = () => {
     }
   };
 
-  // PASO 2: Crear nueva hoja (copia de plantilla)
+  // 🔴 FUNCIÓN CORREGIDA - Paso 2
   const crearNuevaHoja = async () => {
     if (!periodo.trim()) {
       setMensaje('❌ Ingresa el nombre del período primero (ej: AGOSTO 2026)');
@@ -88,14 +86,26 @@ const AdminPanel = () => {
     }
 
     setCreando(true);
-    setMensaje('🔄 Creando nueva hoja de cálculo... Esto puede tomar unos segundos');
+    setMensaje('🔄 Creando nueva hoja de cálculo...');
 
     try {
       const PROXY_URL = '/api/google-script';
-      const response = await fetch(`${PROXY_URL}?scriptUrl=${encodeURIComponent(googleScriptUrl)}&action=crearHoja&periodo=${encodeURIComponent(periodo)}`);
+      
+      // 🔴 USAR URLSearchParams para codificar correctamente
+      const params = new URLSearchParams();
+      params.append('scriptUrl', googleScriptUrl);
+      params.append('action', 'crearHoja');
+      params.append('periodo', periodo);
+      
+      const url = `${PROXY_URL}?${params.toString()}`;
+      
+      console.log('📡 URL completa:', url);
+      console.log('📡 Parámetros:', { scriptUrl: googleScriptUrl, action: 'crearHoja', periodo });
+      
+      const response = await fetch(url);
       const result = await response.json();
 
-      console.log('📥 Resultado:', result);
+      console.log('📥 Respuesta del servidor:', result);
 
       if (result.success) {
         const configRef = ref(db, 'encuesta-config/config');
@@ -124,7 +134,6 @@ const AdminPanel = () => {
     }
   };
 
-  // PASO 3: Actualizar BaseUnificada con Excel
   const procesarExcel = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -197,7 +206,6 @@ const AdminPanel = () => {
         <h2 style={{ color: '#5a2290' }}>⚙️ Panel de Administración</h2>
         <p style={{ color: '#666', marginBottom: '30px' }}>Sigue los pasos en orden para configurar el sistema</p>
 
-        {/* Indicador de progreso */}
         <div style={{ display: 'flex', marginBottom: '30px', gap: '10px' }}>
           <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: pasoActual >= 1 ? '#5a2290' : '#e0e0e0', color: pasoActual >= 1 ? 'white' : '#666', borderRadius: '8px' }}>
             📝 Paso 1: Configurar URL
@@ -218,7 +226,7 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* PASO 1: Configuración manual */}
+        {/* PASO 1 */}
         <div style={{ 
           background: pasoActual === 1 ? '#f0f7ff' : '#f9f9f9', 
           padding: '20px', 
@@ -245,6 +253,9 @@ const AdminPanel = () => {
                 fontSize: '14px'
               }}
             />
+            <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+              📌 La URL debe terminar en <strong>/exec</strong>
+            </small>
           </div>
 
           <div style={{ marginBottom: '15px' }}>
@@ -282,7 +293,7 @@ const AdminPanel = () => {
           </button>
         </div>
 
-        {/* PASO 2: Crear hoja (solo visible después del paso 1) */}
+        {/* PASO 2 */}
         {pasoActual >= 2 && (
           <div style={{ 
             background: pasoActual === 2 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f9f9f9', 
@@ -293,7 +304,7 @@ const AdminPanel = () => {
           }}>
             <h3 style={{ margin: '0 0 10px 0', color: pasoActual === 2 ? 'white' : '#5a2290' }}>🚀 Paso 2: Crear hoja de cálculo</h3>
             <p style={{ fontSize: '14px', marginBottom: '15px', opacity: pasoActual === 2 ? 0.9 : 0.7 }}>
-              Crea una nueva hoja de cálculo limpia para el período {periodo || 'actual'}
+              Crea una nueva hoja de cálculo limpia para el período <strong>{periodo || 'actual'}</strong>
             </p>
             
             <button
@@ -316,7 +327,7 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* PASO 3: Subir Excel (solo visible después del paso 2) */}
+        {/* PASO 3 */}
         {pasoActual >= 3 && (
           <div style={{ 
             background: '#f0f7ff', 
@@ -382,7 +393,7 @@ const AdminPanel = () => {
                         <td style={{ padding: '8px' }}>{item.nombre?.substring(0, 30)}</td>
                         <td style={{ padding: '8px' }}>{item.curso}</td>
                         <td style={{ padding: '8px' }}>{item.seccion}</td>
-                      </tr>
+                       </tr>
                     ))}
                   </tbody>
                 </table>
