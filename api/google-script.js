@@ -1,5 +1,6 @@
 // api/google-script.js
 export default async function handler(req, res) {
+  // Habilitar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,32 +13,35 @@ export default async function handler(req, res) {
     // GET para login o crear hoja
     if (req.method === 'GET') {
       const scriptUrl = req.query.scriptUrl;
+      
       if (!scriptUrl) {
         return res.status(400).json({ error: 'No se proporcionó URL del script' });
       }
       
-      // 🔴 IMPORTANTE: Construir la URL correctamente
+      // Construir la URL con los parámetros
       let url = scriptUrl;
-      const params = new URLSearchParams();
+      const params = [];
       
       if (req.query.email) {
-        params.append('email', req.query.email);
+        params.push(`email=${encodeURIComponent(req.query.email)}`);
       }
       if (req.query.action) {
-        params.append('action', req.query.action);
+        params.push(`action=${encodeURIComponent(req.query.action)}`);
       }
       if (req.query.periodo) {
-        params.append('periodo', req.query.periodo);
+        params.push(`periodo=${encodeURIComponent(req.query.periodo)}`);
       }
       
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
+      if (params.length > 0) {
+        url += `?${params.join('&')}`;
       }
       
       console.log('📤 GET a:', url);
+      
       const response = await fetch(url);
       const data = await response.json();
+      console.log('📥 Respuesta:', data);
+      
       return res.status(200).json(data);
     }
 
