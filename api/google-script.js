@@ -9,21 +9,19 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Manejar GET
+  // Manejar GET (login, crear hoja)
   if (req.method === 'GET') {
     try {
       const { scriptUrl, action, periodo, email } = req.query;
       
-      console.log('📥 Proxy Vercel - Parámetros:', { scriptUrl, action, periodo, email });
+      console.log('📥 GET - Parámetros:', { scriptUrl, action, periodo, email });
       
       if (!scriptUrl) {
-        return res.status(400).json({ error: 'Falta el parámetro scriptUrl' });
+        return res.status(400).json({ error: 'Falta scriptUrl' });
       }
       
-      // Construir URL para Apps Script
       let targetUrl = scriptUrl;
       const params = [];
-      
       if (action) params.push(`action=${encodeURIComponent(action)}`);
       if (periodo) params.push(`periodo=${encodeURIComponent(periodo)}`);
       if (email) params.push(`email=${encodeURIComponent(email)}`);
@@ -32,31 +30,32 @@ export default async function handler(req, res) {
         targetUrl += `?${params.join('&')}`;
       }
       
-      console.log('📤 Proxy Vercel - Llamando a:', targetUrl);
+      console.log('📤 Llamando a:', targetUrl);
       
       const response = await fetch(targetUrl);
       const data = await response.json();
       
-      console.log('📥 Proxy Vercel - Respuesta:', data);
-      
+      console.log('📥 Respuesta:', data);
       return res.status(200).json(data);
       
     } catch (error) {
-      console.error('❌ Proxy Vercel - Error:', error);
+      console.error('❌ Error GET:', error);
       return res.status(500).json({ success: false, error: error.message });
     }
   }
   
-  // Manejar POST
+  // Manejar POST (guardar encuesta, actualizar base)
   if (req.method === 'POST') {
     try {
       const { scriptUrl, ...bodyData } = req.body;
       
+      console.log('📥 POST - Body recibido:', { scriptUrl, bodyData });
+      
       if (!scriptUrl) {
-        return res.status(400).json({ error: 'Falta el parámetro scriptUrl' });
+        return res.status(400).json({ error: 'Falta scriptUrl' });
       }
       
-      console.log('📤 Proxy Vercel POST - URL:', scriptUrl);
+      console.log('📤 POST a:', scriptUrl);
       
       const response = await fetch(scriptUrl, {
         method: 'POST',
@@ -65,10 +64,12 @@ export default async function handler(req, res) {
       });
       
       const data = await response.json();
+      console.log('📥 Respuesta POST:', data);
+      
       return res.status(200).json(data);
       
     } catch (error) {
-      console.error('❌ Proxy Vercel POST - Error:', error);
+      console.error('❌ Error POST:', error);
       return res.status(500).json({ success: false, error: error.message });
     }
   }
