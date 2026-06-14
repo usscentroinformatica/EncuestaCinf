@@ -1,6 +1,5 @@
 // api/google-script.js
 export default async function handler(req, res) {
-  // Habilitar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,13 +16,23 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No se proporcionó URL del script' });
       }
       
+      // 🔴 IMPORTANTE: Construir la URL correctamente
       let url = scriptUrl;
+      const params = new URLSearchParams();
+      
       if (req.query.email) {
-        url += `?email=${encodeURIComponent(req.query.email)}`;
+        params.append('email', req.query.email);
       }
       if (req.query.action) {
-        const separator = url.includes('?') ? '&' : '?';
-        url += `${separator}action=${encodeURIComponent(req.query.action)}&periodo=${encodeURIComponent(req.query.periodo || '')}`;
+        params.append('action', req.query.action);
+      }
+      if (req.query.periodo) {
+        params.append('periodo', req.query.periodo);
+      }
+      
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
       }
       
       console.log('📤 GET a:', url);
