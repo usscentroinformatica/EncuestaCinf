@@ -73,59 +73,58 @@ const AdminPanel = () => {
     }
   };
 
-  // 🔴 FUNCIÓN CORREGIDA - Paso 2
   const crearNuevaHoja = async () => {
-  if (!periodo.trim()) {
-    setMensaje('❌ Ingresa el nombre del período primero');
-    return;
-  }
-
-  if (!googleScriptUrl) {
-    setMensaje('❌ Primero guarda la URL del script en el Paso 1');
-    return;
-  }
-
-  setCreando(true);
-  setMensaje('🔄 Creando nueva hoja de cálculo...');
-
-  try {
-    const PROXY_URL = '/api/google-script';
-    const params = new URLSearchParams();
-    params.append('scriptUrl', googleScriptUrl);
-    params.append('action', 'crearHoja');
-    params.append('periodo', periodo);
-    
-    const url = `${PROXY_URL}?${params.toString()}`;
-    
-    const response = await fetch(url);
-    const result = await response.json();
-
-    if (result.success) {
-      const configRef = ref(db, 'encuesta-config/config');
-      await set(configRef, {
-        googleScriptUrl: googleScriptUrl, // 🔴 MISMA URL, no cambia
-        spreadsheetUrl: result.spreadsheetUrl,
-        periodo: periodo,
-        fechaActualizacion: new Date().toISOString()
-      });
-
-      setMensaje(`✅ ¡Hoja creada!\n📊 ${result.spreadsheetUrl}`);
-      setPasoActual(3);
-      
-      setTimeout(() => {
-        cargarConfiguracion();
-      }, 2000);
-    } else {
-      throw new Error(result.error || 'Error al crear la hoja');
+    if (!periodo.trim()) {
+      setMensaje('❌ Ingresa el nombre del período primero');
+      return;
     }
 
-  } catch (error: any) {
-    console.error('❌ Error:', error);
-    setMensaje(`❌ Error: ${error.message}`);
-  } finally {
-    setCreando(false);
-  }
-};
+    if (!googleScriptUrl) {
+      setMensaje('❌ Primero guarda la URL del script en el Paso 1');
+      return;
+    }
+
+    setCreando(true);
+    setMensaje('🔄 Creando nueva hoja de cálculo...');
+
+    try {
+      const PROXY_URL = '/api/google-script';
+      const params = new URLSearchParams();
+      params.append('scriptUrl', googleScriptUrl);
+      params.append('action', 'crearHoja');
+      params.append('periodo', periodo);
+      
+      const url = `${PROXY_URL}?${params.toString()}`;
+      
+      const response = await fetch(url);
+      const result = await response.json();
+
+      if (result.success) {
+        const configRef = ref(db, 'encuesta-config/config');
+        await set(configRef, {
+          googleScriptUrl: googleScriptUrl,
+          spreadsheetUrl: result.spreadsheetUrl,
+          periodo: periodo,
+          fechaActualizacion: new Date().toISOString()
+        });
+
+        setMensaje(`✅ ¡Hoja creada!\n📊 ${result.spreadsheetUrl}`);
+        setPasoActual(3);
+        
+        setTimeout(() => {
+          cargarConfiguracion();
+        }, 2000);
+      } else {
+        throw new Error(result.error || 'Error al crear la hoja');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error:', error);
+      setMensaje(`❌ Error: ${error.message}`);
+    } finally {
+      setCreando(false);
+    }
+  };
 
   const procesarExcel = (file: File) => {
     const reader = new FileReader();
@@ -135,25 +134,52 @@ const AdminPanel = () => {
       const primeraHoja = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(primeraHoja);
       
-      const estudiantes = jsonData.map((row: any) => ({
-        correo: row['EMail1'] || row['EMail2'] || row['EMaiCrec'] || '',
-        nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim(),
-        planEstudio: row['PlanEst'] || '',
-        curso: row['Curso'] || '',
-        seccion: row['Seccion'] || '',
-        docente: row['Docente'] || ''
-      }));
+      console.log('📊 Filas totales en Excel:', jsonData.length);
       
-      const validos = estudiantes.filter(e => e.correo && e.correo.includes('@'));
-      setPreviewData(validos);
-      setMensaje(`📊 Se encontraron ${validos.length} registros válidos`);
+      const estudiantes = jsonData
+        .map((row: any) => ({
+          correo: row['EMail1'] || row['EMail2'] || row['EMaiCrec'] || '',
+          nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim(),
+          planEstudio: row['PlanEst'] || '',
+          curso: row['Curso'] || '',
+          seccion: row['Seccion'] || '',
+          docente: row['Docente'] || ''
+        }))
+        .filter(est => {
+          const tieneCorreo = est.correo && est.correo.includes('@');
+          const tieneNombre = est.nombre && est.nombre.length > 0;
+          const tieneCurso = est.curso && est.curso.length > 0;
+          return tieneCorreo && tieneNombre && tieneCurso;
+        });
+      
+      // Eliminar duplicados por correo
+      const uniqueEstudiantes = [];
+      const emailsVistos = new Set();
+      
+      for (const est of estudiantes) {
+        if (!emailsVistos.has(est.correo)) {
+          emailsVistos.add(est.correo);
+          uniqueEstudiantes.push(est);
+        }
+      }
+      
+      console.log(`📊 Originales: ${jsonData.length}, Válidos: ${estudiantes.length}, Únicos: ${uniqueEstudiantes.length}`);
+      
+      setPreviewData(uniqueEstudiantes);
+      setMensaje(`📊 Se encontraron ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
     };
     reader.readAsArrayBuffer(file);
   };
 
+  // 🔴 FUNCIÓN CORREGIDA - Usa la spreadsheetUrl para asegurar la hoja correcta
   const actualizarBaseUnificada = async () => {
     if (!googleScriptUrl) {
       setMensaje('❌ No hay URL del script configurada');
+      return;
+    }
+    
+    if (!configActual?.spreadsheetUrl) {
+      setMensaje('❌ No hay una hoja activa. Primero crea una hoja en el Paso 2');
       return;
     }
     
@@ -163,15 +189,18 @@ const AdminPanel = () => {
     }
 
     setSubiendoBase(true);
-    setMensaje('🔄 Actualizando BaseUnificada...');
+    setMensaje(`🔄 Actualizando BaseUnificada en la hoja: ${configActual.spreadsheetUrl.substring(0, 50)}...`);
 
     try {
       const PROXY_URL = '/api/google-script';
+      
+      // 🔴 Enviar la URL de la hoja actual para que el script sepa dónde guardar
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: googleScriptUrl,
+          spreadsheetUrl: configActual.spreadsheetUrl, // 🔴 PASAR LA HOJA ACTIVA
           action: 'actualizarBase',
           data: previewData
         })
@@ -182,11 +211,14 @@ const AdminPanel = () => {
       if (result.success) {
         setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.\n\n🎉 El sistema está listo para que los estudiantes encuesten.`);
         setPreviewData([]);
+        // Recargar configuración para actualizar la vista
+        setTimeout(() => cargarConfiguracion(), 1500);
       } else {
         throw new Error(result.error || 'Error al actualizar');
       }
 
     } catch (error: any) {
+      console.error('❌ Error:', error);
       setMensaje(`❌ Error: ${error.message}`);
     } finally {
       setSubiendoBase(false);
@@ -331,8 +363,8 @@ const AdminPanel = () => {
           }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#5a2290' }}>👥 Paso 3: Cargar estudiantes a BaseUnificada</h3>
             <p style={{ fontSize: '14px', marginBottom: '15px', color: '#666' }}>
-              Sube un archivo Excel con el padrón de estudiantes. El sistema extraerá automáticamente:
-              <br/>Correo, Nombre, PlanEstudio, Curso, Sección (PEAD) y Docente.
+              Sube un archivo Excel con el padrón de estudiantes para la hoja actual.
+              <br/>Los datos se guardarán en: <strong>{configActual?.spreadsheetUrl?.substring(0, 60)}...</strong>
             </p>
             
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
@@ -386,7 +418,7 @@ const AdminPanel = () => {
                         <td style={{ padding: '8px' }}>{item.nombre?.substring(0, 30)}</td>
                         <td style={{ padding: '8px' }}>{item.curso}</td>
                         <td style={{ padding: '8px' }}>{item.seccion}</td>
-                       </tr>
+                      </tr>
                     ))}
                   </tbody>
                 </table>

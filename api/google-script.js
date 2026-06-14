@@ -1,6 +1,5 @@
 // api/google-script.js
 export default async function handler(req, res) {
-  // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -44,19 +43,22 @@ export default async function handler(req, res) {
   // Manejar POST
   if (req.method === 'POST') {
     try {
-      const { scriptUrl, ...bodyData } = req.body;
+      const { scriptUrl, spreadsheetUrl, ...bodyData } = req.body;
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'Falta scriptUrl' });
       }
       
-      console.log('📤 POST llamando a:', scriptUrl);
-      console.log('📦 Tamaño de datos:', JSON.stringify(bodyData).length, 'bytes');
+      // 🔴 Si se proporciona una spreadsheetUrl, añadirla a la petición
+      let targetUrl = scriptUrl;
       
-      const response = await fetch(scriptUrl, {
+      console.log('📤 POST llamando a:', targetUrl);
+      console.log('📦 Spreadsheet objetivo:', spreadsheetUrl);
+      
+      const response = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyData)
+        body: JSON.stringify({ ...bodyData, spreadsheetUrl })
       });
       
       const data = await response.json();
