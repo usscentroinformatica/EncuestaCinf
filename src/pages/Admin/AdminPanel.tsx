@@ -75,64 +75,57 @@ const AdminPanel = () => {
 
   // 🔴 FUNCIÓN CORREGIDA - Paso 2
   const crearNuevaHoja = async () => {
-    if (!periodo.trim()) {
-      setMensaje('❌ Ingresa el nombre del período primero (ej: AGOSTO 2026)');
-      return;
+  if (!periodo.trim()) {
+    setMensaje('❌ Ingresa el nombre del período primero');
+    return;
+  }
+
+  if (!googleScriptUrl) {
+    setMensaje('❌ Primero guarda la URL del script en el Paso 1');
+    return;
+  }
+
+  setCreando(true);
+  setMensaje('🔄 Creando nueva hoja de cálculo...');
+
+  try {
+    const PROXY_URL = '/api/google-script';
+    const params = new URLSearchParams();
+    params.append('scriptUrl', googleScriptUrl);
+    params.append('action', 'crearHoja');
+    params.append('periodo', periodo);
+    
+    const url = `${PROXY_URL}?${params.toString()}`;
+    
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (result.success) {
+      const configRef = ref(db, 'encuesta-config/config');
+      await set(configRef, {
+        googleScriptUrl: googleScriptUrl, // 🔴 MISMA URL, no cambia
+        spreadsheetUrl: result.spreadsheetUrl,
+        periodo: periodo,
+        fechaActualizacion: new Date().toISOString()
+      });
+
+      setMensaje(`✅ ¡Hoja creada!\n📊 ${result.spreadsheetUrl}`);
+      setPasoActual(3);
+      
+      setTimeout(() => {
+        cargarConfiguracion();
+      }, 2000);
+    } else {
+      throw new Error(result.error || 'Error al crear la hoja');
     }
 
-    if (!googleScriptUrl) {
-      setMensaje('❌ Primero guarda la URL del script en el Paso 1');
-      return;
-    }
-
-    setCreando(true);
-    setMensaje('🔄 Creando nueva hoja de cálculo...');
-
-    try {
-      const PROXY_URL = '/api/google-script';
-      
-      // 🔴 USAR URLSearchParams para codificar correctamente
-      const params = new URLSearchParams();
-      params.append('scriptUrl', googleScriptUrl);
-      params.append('action', 'crearHoja');
-      params.append('periodo', periodo);
-      
-      const url = `${PROXY_URL}?${params.toString()}`;
-      
-      console.log('📡 URL completa:', url);
-      console.log('📡 Parámetros:', { scriptUrl: googleScriptUrl, action: 'crearHoja', periodo });
-      
-      const response = await fetch(url);
-      const result = await response.json();
-
-      console.log('📥 Respuesta del servidor:', result);
-
-      if (result.success) {
-        const configRef = ref(db, 'encuesta-config/config');
-        await set(configRef, {
-          googleScriptUrl: result.scriptUrl,
-          spreadsheetUrl: result.spreadsheetUrl,
-          periodo: periodo,
-          fechaActualizacion: new Date().toISOString()
-        });
-
-        setMensaje(`✅ ¡Hoja creada exitosamente!\n📊 ${result.spreadsheetUrl}\n\nAhora puedes actualizar la BaseUnificada con tus estudiantes.`);
-        setPasoActual(3);
-        
-        setTimeout(() => {
-          cargarConfiguracion();
-        }, 2000);
-      } else {
-        throw new Error(result.error || 'Error al crear la hoja');
-      }
-
-    } catch (error: any) {
-      console.error('❌ Error:', error);
-      setMensaje(`❌ Error: ${error.message}`);
-    } finally {
-      setCreando(false);
-    }
-  };
+  } catch (error: any) {
+    console.error('❌ Error:', error);
+    setMensaje(`❌ Error: ${error.message}`);
+  } finally {
+    setCreando(false);
+  }
+};
 
   const procesarExcel = (file: File) => {
     const reader = new FileReader();
