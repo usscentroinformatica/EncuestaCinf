@@ -1,0 +1,13 @@
+# netlify.toml
+[build]
+  command = "npm run build"
+  publish = "dist"  # Vite genera la build en "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  directory = "netlify/functions/"
+  node_bundler = "esbuild"
