@@ -72,7 +72,7 @@ export default function Formulario() {
   const [error, setError] = useState('')
   const [exitoModal, setExitoModal] = useState(false)
   const [configLoading, setConfigLoading] = useState(true)
-  const [apiUrl, setApiUrl] = useState('') // 🔴 NUEVO: Guardar URL desde Firebase
+  const [apiUrl, setApiUrl] = useState('')
 
   // Cargar configuración desde Firebase
   useEffect(() => {
@@ -84,12 +84,9 @@ export default function Formulario() {
           const config = snapshot.val();
           console.log('📊 Configuración cargada:', config);
           
-          // 🔴 GUARDAR LA URL DEL SCRIPT
           if (config.googleScriptUrl) {
             setApiUrl(config.googleScriptUrl);
             console.log('✅ API URL cargada:', config.googleScriptUrl);
-          } else {
-            console.error('❌ No hay URL en la configuración');
           }
         } else {
           console.error('❌ No hay configuración en Firebase');
@@ -135,82 +132,77 @@ export default function Formulario() {
   const progreso = respuestas.filter(r => r !== '').length + (estrellasSeleccionadas > 0 ? 1 : 0)
   const porcentaje = Math.round((progreso / TOTAL_PREGUNTAS) * 100)
 
-  // En Formulario.tsx, reemplaza la función enviar completa:
-
-const enviar = async () => {
-  const respuestasCompletas = respuestas.every((r, i) => i === 5 || r !== '');
-  if (!respuestasCompletas || estrellasSeleccionadas === 0) {
-    setError("Por favor responde todas las preguntas");
-    return;
-  }
-
-  if (!apiUrl) {
-    setError('Error de configuración: No se encontró la URL del servidor');
-    return;
-  }
-
-  setEnviando(true);
-  setError('');
-
-  try {
-    const cursoLimpio = limpiarNombreCurso(info.curso);
-    const respuestasFinales = [...respuestas];
-    respuestasFinales[5] = `${estrellasSeleccionadas} estrella${estrellasSeleccionadas !== 1 ? 's' : ''}`;
-
-    // 🔴 USAR EL PROXY DE VERCEL
-    const PROXY_URL = '/api/google-script';  // <--- NOMBRE CORRECTO
-    
-    console.log('🌐 Proxy URL:', PROXY_URL);
-    console.log('📦 Enviando a script:', apiUrl);
-    
-    const response = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scriptUrl: apiUrl,  // 🔴 PASAR LA URL DEL SCRIPT
-        email: datos.email,
-        nombre: info.nombre,
-        planestudio: info.planEstudio || '',
-        curso: cursoLimpio,
-        pead: info.pead,
-        docente: info.docente,
-        respuestas: respuestasFinales.join('|||')
-      }),
-    });
-
-    const result = await response.json();
-    console.log('📥 Respuesta del proxy:', result);
-
-    if (result.success) {
-      const datosActualizados = {...datos};
-      const cursoIndex = datosActualizados.cursos.findIndex((c: any) => c.curso === cursoSel);
-      if (cursoIndex !== -1) datosActualizados.cursos[cursoIndex].completado = true;
-      
-      const cursosPendientes = datosActualizados.cursos.filter((c: any) => !c.completado);
-      
-      if (cursosPendientes.length > 0) {
-        localStorage.setItem('eval_data', JSON.stringify(datosActualizados));
-        setExitoModal(true);
-        setTimeout(() => window.location.href = '/formulario', 3000);
-      } else {
-        setExitoModal(true);
-        localStorage.removeItem('eval_data');
-        setTimeout(() => window.location.href = '/', 5000);
-      }
-    } else {
-      throw new Error(result.error || 'Error al enviar la encuesta');
+  const enviar = async () => {
+    const respuestasCompletas = respuestas.every((r, i) => i === 5 || r !== '');
+    if (!respuestasCompletas || estrellasSeleccionadas === 0) {
+      setError("Por favor responde todas las preguntas");
+      return;
     }
 
-  } catch (error: any) {
-    console.error('❌ Error detallado:', error);
-    setError(error.message || 'Error al enviar. Intenta nuevamente.');
-    setTimeout(() => {
-      setError('');
-    }, 5000);
-  } finally {
-    setEnviando(false);
-  }
-};
+    if (!apiUrl) {
+      setError('Error de configuración: No se encontró la URL del servidor');
+      return;
+    }
+
+    setEnviando(true);
+    setError('');
+
+    try {
+      const cursoLimpio = limpiarNombreCurso(info.curso);
+      const respuestasFinales = [...respuestas];
+      respuestasFinales[5] = `${estrellasSeleccionadas} estrella${estrellasSeleccionadas !== 1 ? 's' : ''}`;
+
+      const PROXY_URL = '/api/google-script';
+      
+      console.log('🌐 Proxy URL:', PROXY_URL);
+      console.log('📦 Enviando a script:', apiUrl);
+      
+      const response = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scriptUrl: apiUrl,
+          email: datos.email,
+          nombre: info.nombre,
+          planestudio: info.planEstudio || '',
+          curso: cursoLimpio,
+          pead: info.pead,
+          docente: info.docente,
+          respuestas: respuestasFinales.join('|||')
+        }),
+      });
+
+      const result = await response.json();
+      console.log('📥 Respuesta:', result);
+
+      if (result.success) {
+        const datosActualizados = {...datos};
+        const cursoIndex = datosActualizados.cursos.findIndex((c: any) => c.curso === cursoSel);
+        if (cursoIndex !== -1) datosActualizados.cursos[cursoIndex].completado = true;
+        
+        const cursosPendientes = datosActualizados.cursos.filter((c: any) => !c.completado);
+        
+        if (cursosPendientes.length > 0) {
+          localStorage.setItem('eval_data', JSON.stringify(datosActualizados));
+          setExitoModal(true);
+          setTimeout(() => window.location.href = '/formulario', 3000);
+        } else {
+          setExitoModal(true);
+          localStorage.removeItem('eval_data');
+          setTimeout(() => window.location.href = '/', 5000);
+        }
+      } else {
+        throw new Error(result.error || 'Error al enviar la encuesta');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error:', error);
+      setError(error.message || 'Error al enviar. Intenta nuevamente.');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   if (exitoModal) {
     const cursosPendientes = datos?.cursos.filter((c: any) => !c.completado) || [];

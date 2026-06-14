@@ -1,5 +1,6 @@
 // api/google-script.js
 export default async function handler(req, res) {
+  // Habilitar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -25,31 +26,23 @@ export default async function handler(req, res) {
         url += `${separator}action=${encodeURIComponent(req.query.action)}&periodo=${encodeURIComponent(req.query.periodo || '')}`;
       }
       
+      console.log('📤 GET a:', url);
       const response = await fetch(url);
       const data = await response.json();
       return res.status(200).json(data);
     }
 
-    // POST para enviar formulario o actualizar BaseUnificada
+    // POST para enviar formulario o actualizar Base
     if (req.method === 'POST') {
-      const { scriptUrl, action, data, ...bodyData } = req.body;
+      const { scriptUrl, ...bodyData } = req.body;
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'No se proporcionó URL del script' });
       }
       
-      // Si es acción de actualizar BaseUnificada
-      if (action === 'actualizarBase') {
-        const response = await fetch(scriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'actualizarBase', data: data })
-        });
-        const result = await response.json();
-        return res.status(200).json(result);
-      }
+      console.log('📤 POST a:', scriptUrl);
+      console.log('📦 Datos:', bodyData);
       
-      // Si es envío normal de encuesta
       const response = await fetch(scriptUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,6 +50,8 @@ export default async function handler(req, res) {
       });
       
       const result = await response.json();
+      console.log('📥 Respuesta:', result);
+      
       return res.status(200).json(result);
     }
 
