@@ -9,12 +9,10 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Manejar GET (login, crear hoja)
+  // Manejar GET
   if (req.method === 'GET') {
     try {
       const { scriptUrl, action, periodo, email } = req.query;
-      
-      console.log('📥 GET - Parámetros:', { scriptUrl, action, periodo, email });
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'Falta scriptUrl' });
@@ -30,12 +28,11 @@ export default async function handler(req, res) {
         targetUrl += `?${params.join('&')}`;
       }
       
-      console.log('📤 Llamando a:', targetUrl);
+      console.log('📤 GET llamando a:', targetUrl);
       
       const response = await fetch(targetUrl);
       const data = await response.json();
       
-      console.log('📥 Respuesta:', data);
       return res.status(200).json(data);
       
     } catch (error) {
@@ -44,18 +41,17 @@ export default async function handler(req, res) {
     }
   }
   
-  // Manejar POST (guardar encuesta, actualizar base)
+  // Manejar POST
   if (req.method === 'POST') {
     try {
       const { scriptUrl, ...bodyData } = req.body;
-      
-      console.log('📥 POST - Body recibido:', { scriptUrl, bodyData });
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'Falta scriptUrl' });
       }
       
-      console.log('📤 POST a:', scriptUrl);
+      console.log('📤 POST llamando a:', scriptUrl);
+      console.log('📦 Tamaño de datos:', JSON.stringify(bodyData).length, 'bytes');
       
       const response = await fetch(scriptUrl, {
         method: 'POST',
