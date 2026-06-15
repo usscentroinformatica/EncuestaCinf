@@ -1,4 +1,3 @@
-// src/services/authService.ts
 import { db } from '../firebase/config';
 import { ref, get } from 'firebase/database';
 
@@ -40,5 +39,30 @@ export const getGoogleScriptUrl = async (): Promise<string> => {
   } catch (error) {
     console.error('Error cargando config:', error);
     return "";
+  }
+};
+
+// 🔴 NUEVA FUNCIÓN: Obtener configuración completa (URL + spreadsheetId)
+export const getConfigCompleta = async (): Promise<{ scriptUrl: string; spreadsheetId: string }> => {
+  try {
+    const configRef = ref(db, 'encuesta-config/config');
+    const snapshot = await get(configRef);
+    
+    if (snapshot.exists()) {
+      const config = snapshot.val();
+      console.log('📦 Config completa cargada:', {
+        scriptUrl: config.googleScriptUrl ? '✅' : '❌',
+        spreadsheetId: config.spreadsheetId ? '✅' : '❌'
+      });
+      return {
+        scriptUrl: config.googleScriptUrl || "",
+        spreadsheetId: config.spreadsheetId || ""
+      };
+    }
+    console.error('❌ No hay configuración en Firebase');
+    return { scriptUrl: "", spreadsheetId: "" };
+  } catch (error) {
+    console.error('Error cargando config completa:', error);
+    return { scriptUrl: "", spreadsheetId: "" };
   }
 };
