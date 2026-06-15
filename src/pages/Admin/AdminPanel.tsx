@@ -14,6 +14,7 @@ const AdminPanel = () => {
   const [subiendoBase, setSubiendoBase] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [pasoActual, setPasoActual] = useState(1);
+  const [spreadsheetId, setSpreadsheetId] = useState('');
 
   useEffect(() => {
     cargarConfiguracion();
@@ -29,6 +30,7 @@ const AdminPanel = () => {
         setConfigActual(data);
         setGoogleScriptUrl(data.googleScriptUrl || '');
         setPeriodo(data.periodo || '');
+        setSpreadsheetId(data.spreadsheetId || '');
         
         if (data.spreadsheetUrl) {
           setPasoActual(3);
@@ -100,14 +102,19 @@ const AdminPanel = () => {
       const result = await response.json();
 
       if (result.success) {
+        // Extraer el spreadsheetId de la URL
+        const newSpreadsheetId = result.spreadsheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)[1];
+        
         const configRef = ref(db, 'encuesta-config/config');
         await set(configRef, {
           googleScriptUrl: googleScriptUrl,
           spreadsheetUrl: result.spreadsheetUrl,
+          spreadsheetId: newSpreadsheetId,
           periodo: periodo,
           fechaActualizacion: new Date().toISOString()
         });
 
+        setSpreadsheetId(newSpreadsheetId);
         setMensaje(`✅ ¡Hoja creada!\n📊 ${result.spreadsheetUrl}`);
         setPasoActual(3);
         
@@ -126,15 +133,25 @@ const AdminPanel = () => {
     }
   };
 
+  // 🔴 CORREGIDO: Lee específicamente la hoja "data" del Excel
   const procesarExcel = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const data = new Uint8Array(e.target?.result as ArrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
-      const primeraHoja = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(primeraHoja);
       
-      console.log('📊 Filas totales en Excel:', jsonData.length);
+      // 🔴 Buscar específicamente la hoja "data"
+      let sheetName = 'data';
+      if (!workbook.SheetNames.includes(sheetName)) {
+        // Si no existe "data", usar la primera hoja
+        sheetName = workbook.SheetNames[0];
+        setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
+      }
+      
+      const hojaData = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(hojaData);
+      
+      console.log(`📊 Leyendo hoja: ${sheetName}, Filas: ${jsonData.length}`);
       
       const estudiantes = jsonData
         .map((row: any) => ({
@@ -166,19 +183,19 @@ const AdminPanel = () => {
       console.log(`📊 Originales: ${jsonData.length}, Válidos: ${estudiantes.length}, Únicos: ${uniqueEstudiantes.length}`);
       
       setPreviewData(uniqueEstudiantes);
-      setMensaje(`📊 Se encontraron ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
+      setMensaje(`📊 Hoja "${sheetName}": ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // 🔴 FUNCIÓN CORREGIDA - Usa la spreadsheetUrl para asegurar la hoja correcta
+  // 🔴 CORREGIDO: Envía el spreadsheetId para que guarde en la hoja correcta
   const actualizarBaseUnificada = async () => {
     if (!googleScriptUrl) {
       setMensaje('❌ No hay URL del script configurada');
       return;
     }
     
-    if (!configActual?.spreadsheetUrl) {
+    if (!spreadsheetId && !configActual?.spreadsheetId) {
       setMensaje('❌ No hay una hoja activa. Primero crea una hoja en el Paso 2');
       return;
     }
@@ -188,19 +205,22 @@ const AdminPanel = () => {
       return;
     }
 
+    const activeSpreadsheetId = spreadsheetId || configActual?.spreadsheetId;
+    const activeSpreadsheetUrl = configActual?.spreadsheetUrl;
+
     setSubiendoBase(true);
-    setMensaje(`🔄 Actualizando BaseUnificada en la hoja: ${configActual.spreadsheetUrl.substring(0, 50)}...`);
+    setMensaje(`🔄 Actualizando ${previewData.length} estudiantes en la hoja activa...`);
 
     try {
       const PROXY_URL = '/api/google-script';
       
-      // 🔴 Enviar la URL de la hoja actual para que el script sepa dónde guardar
+      // 🔴 Enviar el spreadsheetId para que el script sepa exactamente qué hoja usar
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: googleScriptUrl,
-          spreadsheetUrl: configActual.spreadsheetUrl, // 🔴 PASAR LA HOJA ACTIVA
+          spreadsheetId: activeSpreadsheetId,
           action: 'actualizarBase',
           data: previewData
         })
@@ -209,9 +229,8 @@ const AdminPanel = () => {
       const result = await response.json();
 
       if (result.success) {
-        setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.\n\n🎉 El sistema está listo para que los estudiantes encuesten.`);
+        setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.\n📎 Hoja: ${activeSpreadsheetUrl?.substring(0, 60)}...`);
         setPreviewData([]);
-        // Recargar configuración para actualizar la vista
         setTimeout(() => cargarConfiguracion(), 1500);
       } else {
         throw new Error(result.error || 'Error al actualizar');
@@ -248,6 +267,7 @@ const AdminPanel = () => {
             <p><strong>📊 Estado actual:</strong></p>
             <p>📅 Período: <strong>{configActual.periodo}</strong></p>
             <p>📎 Hoja activa: <a href={configActual.spreadsheetUrl} target="_blank" rel="noopener noreferrer">Ver hoja de cálculo</a></p>
+            <p>🆔 ID de la hoja: <code>{spreadsheetId || configActual?.spreadsheetId}</code></p>
           </div>
         )}
 
@@ -363,8 +383,9 @@ const AdminPanel = () => {
           }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#5a2290' }}>👥 Paso 3: Cargar estudiantes a BaseUnificada</h3>
             <p style={{ fontSize: '14px', marginBottom: '15px', color: '#666' }}>
-              Sube un archivo Excel con el padrón de estudiantes para la hoja actual.
-              <br/>Los datos se guardarán en: <strong>{configActual?.spreadsheetUrl?.substring(0, 60)}...</strong>
+              Sube un archivo Excel con el padrón de estudiantes.
+              <br/>⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> (el sistema la buscará automáticamente).
+              <br/>📎 Los datos se guardarán en: <strong>{configActual?.spreadsheetUrl?.substring(0, 50)}...</strong>
             </p>
             
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>

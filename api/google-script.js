@@ -43,22 +43,27 @@ export default async function handler(req, res) {
   // Manejar POST
   if (req.method === 'POST') {
     try {
-      const { scriptUrl, spreadsheetUrl, ...bodyData } = req.body;
+      const { scriptUrl, spreadsheetId, ...bodyData } = req.body;
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'Falta scriptUrl' });
       }
       
-      // 🔴 Si se proporciona una spreadsheetUrl, añadirla a la petición
       let targetUrl = scriptUrl;
       
+      // Si hay spreadsheetId, pasarlo como parámetro para que el script sepa qué hoja usar
+      if (spreadsheetId) {
+        const separator = targetUrl.includes('?') ? '&' : '?';
+        targetUrl += `${separator}spreadsheetId=${encodeURIComponent(spreadsheetId)}`;
+      }
+      
       console.log('📤 POST llamando a:', targetUrl);
-      console.log('📦 Spreadsheet objetivo:', spreadsheetUrl);
+      console.log('📦 spreadsheetId:', spreadsheetId);
       
       const response = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...bodyData, spreadsheetUrl })
+        body: JSON.stringify(bodyData)
       });
       
       const data = await response.json();
