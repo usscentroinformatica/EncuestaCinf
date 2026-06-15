@@ -30,6 +30,25 @@ export default function Login() {
     try {
       const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
       
+      // 🔴 PASO 1: PRIMERO VERIFICAR SI ES ADMINISTRADOR
+      // El admin usa el dominio @uss.edu.pe
+      const emailAdmin = `${nombreUsuarioLimpio}@uss.edu.pe`
+      
+      console.log('🔍 Verificando si es administrador:', emailAdmin)
+      const esAdministrador = await esAdmin(emailAdmin)
+      
+      if (esAdministrador) {
+        console.log('👑 Usuario administrador detectado:', emailAdmin)
+        localStorage.setItem('isAdmin', 'true')
+        localStorage.setItem('adminEmail', emailAdmin)
+        window.location.href = '/admin'
+        setLoading(false)
+        return
+      }
+      
+      // 🔴 PASO 2: SI NO ES ADMIN, BUSCAR EN BASEUNIFICADA COMO ESTUDIANTE
+      console.log('👨‍🎓 No es administrador, buscando como estudiante...')
+      
       // Lista de dominios a probar
       const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
       
@@ -49,11 +68,11 @@ export default function Login() {
         console.warn('⚠️ No hay spreadsheetId configurado. El sistema podría no funcionar correctamente.')
       }
       
-      // Probar cada dominio
+      // Probar cada dominio para buscar al estudiante
       for (const dominio of dominios) {
         const emailProbar = `${nombreUsuarioLimpio}${dominio}`
         
-        console.log(`🔍 Probando con: ${emailProbar}`)
+        console.log(`🔍 Buscando estudiante con: ${emailProbar}`)
         
         const url = `${config.scriptUrl}?email=${encodeURIComponent(emailProbar)}&spreadsheetId=${config.spreadsheetId}`
         
@@ -75,26 +94,11 @@ export default function Login() {
         }
       }
       
-      // Si no se encontró con ningún dominio
+      // Si no se encontró al estudiante
       if (!emailEncontrado || !datosEstudiante) {
-        setError(`❌ Usuario "${nombreUsuarioLimpio}" no encontrado. Verifica que esté registrado en la base de datos.`)
+        setError(`❌ Usuario "${nombreUsuarioLimpio}" no encontrado.\n\nPosibles causas:\n• No eres administrador registrado\n• No estás en la base de datos de estudiantes\n• Verifica que tu nombre de usuario sea correcto`)
         setLoading(false)
         return
-      }
-      
-      // Verificar si es administrador (solo para @uss.edu.pe)
-      const esDominioInstitucional = emailEncontrado.endsWith('@uss.edu.pe')
-      
-      if (esDominioInstitucional) {
-        const admin = await esAdmin(emailEncontrado)
-        if (admin) {
-          console.log('👑 Usuario administrador detectado:', emailEncontrado)
-          localStorage.setItem('isAdmin', 'true')
-          localStorage.setItem('adminEmail', emailEncontrado)
-          window.location.href = '/admin'
-          setLoading(false)
-          return
-        }
       }
       
       // Es estudiante normal
@@ -106,7 +110,7 @@ export default function Login() {
         return
       }
       
-      // Guardar datos en localStorage
+      // Guardar datos del estudiante
       const datosAGuardar = {
         email: emailEncontrado,
         cursos: datosEstudiante.cursos,
@@ -267,7 +271,7 @@ export default function Login() {
                   color: '#5f6368',
                   fontWeight: '500'
                 }}>
-                  @uss.edu.pe (u otro)
+                  @uss.edu.pe
                 </span>
               </div>
               <div style={{
@@ -275,7 +279,7 @@ export default function Login() {
                 color: '#5f6368',
                 marginTop: '8px'
               }}>
-                Ingresa solo tu nombre de usuario (sin @). El sistema buscará automáticamente con @uss.edu.pe, @gmail.com, @hotmail.com, etc.
+                Ingresa tu usuario (sin @). Administradores: usan @uss.edu.pe
               </div>
             </div>
 
@@ -321,7 +325,7 @@ export default function Login() {
               </button>
             </div>
 
-            {/* Mostrar con qué dominio se encontró */}
+            {/* Mostrar con qué dominio se encontró (solo estudiantes) */}
             {dominioEncontrado && !error && !loading && (
               <div style={{
                 marginTop: '16px',
