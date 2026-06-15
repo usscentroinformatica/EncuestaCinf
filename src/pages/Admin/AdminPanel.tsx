@@ -18,7 +18,6 @@ const AdminPanel = () => {
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
 
-  // 🔴 Función para cerrar sesión
   const cerrarSesion = () => {
     localStorage.removeItem('isAdmin');
     localStorage.removeItem('adminEmail');
@@ -300,7 +299,6 @@ const AdminPanel = () => {
     }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         
-        {/* Header con botón de logout */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -318,7 +316,6 @@ const AdminPanel = () => {
             </p>
           </div>
           
-          {/* 🔴 Botón de cerrar sesión */}
           <button
             onClick={cerrarSesion}
             style={{
@@ -349,7 +346,6 @@ const AdminPanel = () => {
           </button>
         </div>
 
-        {/* Pasos indicadores clickeables */}
         <div style={{ 
           background: 'white', 
           borderRadius: '16px', 
@@ -405,7 +401,6 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* Botones de navegación entre pasos */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
           {pasoActual > 1 && (
             <button
@@ -454,7 +449,6 @@ const AdminPanel = () => {
           )}
         </div>
 
-        {/* Contenido dinámico por paso */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
           
           {/* PASO 1 */}
@@ -471,12 +465,16 @@ const AdminPanel = () => {
                     value={googleScriptUrl}
                     onChange={(e) => setGoogleScriptUrl(e.target.value)}
                     placeholder="https://script.google.com/macros/s/XXXX/exec"
+                    disabled={!editandoUrl}
                     style={{
                       flex: 1,
                       padding: '12px 16px',
                       border: `2px solid ${editandoUrl ? '#63ed12' : '#e0e0e0'}`,
                       borderRadius: '8px',
                       fontSize: '14px',
+                      background: editandoUrl ? 'white' : '#f5f5f5',
+                      color: editandoUrl ? '#333' : '#999',
+                      cursor: editandoUrl ? 'text' : 'not-allowed',
                       transition: 'all 0.3s ease'
                     }}
                   />
@@ -489,7 +487,8 @@ const AdminPanel = () => {
                       border: 'none',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontWeight: '500'
+                      fontWeight: '500',
+                      transition: 'all 0.3s ease'
                     }}
                   >
                     {editandoUrl ? '💾 Listo' : '✏️ Editar'}
@@ -506,12 +505,16 @@ const AdminPanel = () => {
                     value={periodo}
                     onChange={(e) => setPeriodo(e.target.value)}
                     placeholder="Ej: AGOSTO 2026"
+                    disabled={!editandoPeriodo}
                     style={{
                       flex: 1,
                       padding: '12px 16px',
                       border: `2px solid ${editandoPeriodo ? '#63ed12' : '#e0e0e0'}`,
                       borderRadius: '8px',
                       fontSize: '14px',
+                      background: editandoPeriodo ? 'white' : '#f5f5f5',
+                      color: editandoPeriodo ? '#333' : '#999',
+                      cursor: editandoPeriodo ? 'text' : 'not-allowed',
                       transition: 'all 0.3s ease'
                     }}
                   />
@@ -524,7 +527,8 @@ const AdminPanel = () => {
                       border: 'none',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontWeight: '500'
+                      fontWeight: '500',
+                      transition: 'all 0.3s ease'
                     }}
                   >
                     {editandoPeriodo ? '💾 Listo' : '✏️ Editar'}
@@ -534,22 +538,28 @@ const AdminPanel = () => {
 
               <button
                 onClick={guardarConfiguracion}
-                disabled={loading || !googleScriptUrl.trim()}
+                disabled={loading || !googleScriptUrl.trim() || editandoUrl || editandoPeriodo}
                 style={{
                   width: '100%',
                   padding: '14px',
-                  background: loading || !googleScriptUrl.trim() ? '#ccc' : '#5a2290',
+                  background: (loading || !googleScriptUrl.trim() || editandoUrl || editandoPeriodo) ? '#ccc' : '#5a2290',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '16px',
                   fontWeight: 'bold',
-                  cursor: loading || !googleScriptUrl.trim() ? 'not-allowed' : 'pointer',
+                  cursor: (loading || !googleScriptUrl.trim() || editandoUrl || editandoPeriodo) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.3s ease'
                 }}
               >
                 {loading ? '💾 Guardando...' : '💾 Guardar configuración'}
               </button>
+              
+              {(editandoUrl || editandoPeriodo) && (
+                <p style={{ marginTop: '15px', fontSize: '12px', color: '#ff6d00', textAlign: 'center' }}>
+                  ⚠️ Termina de editar antes de guardar
+                </p>
+              )}
             </div>
           )}
 
