@@ -15,7 +15,7 @@ export default function Login() {
   const [nombreUsuario, setNombreUsuario] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [dominioEncontrado, setDominioEncontrado] = useState('') // Opcional
+  const [dominioEncontrado, setDominioEncontrado] = useState('')
 
   const ingresar = async () => {
     if (!nombreUsuario.trim()) {
@@ -30,14 +30,13 @@ export default function Login() {
     try {
       const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
       
-      // Lista de dominios a probar (en orden de prioridad)
+      // Lista de dominios a probar
       const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
       
       let emailEncontrado = ''
       let datosEstudiante = null
-      let errorDetalle = ''
       
-      // Obtener configuración completa (URL del script + spreadsheetId)
+      // Obtener configuración completa
       const config = await getConfigCompleta()
       
       if (!config.scriptUrl) {
@@ -50,7 +49,7 @@ export default function Login() {
         console.warn('⚠️ No hay spreadsheetId configurado. El sistema podría no funcionar correctamente.')
       }
       
-      // 🔴 NUEVO: Probar cada dominio hasta encontrar un estudiante
+      // Probar cada dominio
       for (const dominio of dominios) {
         const emailProbar = `${nombreUsuarioLimpio}${dominio}`
         
@@ -62,7 +61,6 @@ export default function Login() {
           const response = await fetch(url)
           const data = await response.json()
           
-          // Si la respuesta es exitosa y tiene cursos
           if (data.success && data.cursos && data.cursos.length > 0) {
             emailEncontrado = emailProbar
             datosEstudiante = data
@@ -70,12 +68,10 @@ export default function Login() {
             console.log(`✅ Estudiante encontrado con: ${emailProbar}`)
             break
           } else if (data.error) {
-            errorDetalle = data.error
             console.log(`❌ No encontrado con ${emailProbar}: ${data.error}`)
           }
         } catch (error) {
           console.log(`❌ Error probando ${emailProbar}:`, error)
-          errorDetalle = 'Error de conexión con el servidor'
         }
       }
       
@@ -86,7 +82,7 @@ export default function Login() {
         return
       }
       
-      // 🔴 VERIFICAR SI ES ADMINISTRADOR (solo para usuarios con @uss.edu.pe)
+      // Verificar si es administrador (solo para @uss.edu.pe)
       const esDominioInstitucional = emailEncontrado.endsWith('@uss.edu.pe')
       
       if (esDominioInstitucional) {
@@ -101,7 +97,7 @@ export default function Login() {
         }
       }
       
-      // SI ES ESTUDIANTE NORMAL
+      // Es estudiante normal
       const pendientes = datosEstudiante.cursos.filter((curso: Curso) => !curso.completado)
       
       if (pendientes.length === 0) {
@@ -110,9 +106,9 @@ export default function Login() {
         return
       }
       
-      // 🔴 CRÍTICO: Guardar el email REAL que se encontró (ej: usuario@gmail.com)
+      // Guardar datos en localStorage
       const datosAGuardar = {
-        email: emailEncontrado,  // 🔴 ESTE ES EL EMAIL REAL
+        email: emailEncontrado,
         cursos: datosEstudiante.cursos,
         spreadsheetId: config.spreadsheetId,
         dominioUsado: dominioEncontrado
