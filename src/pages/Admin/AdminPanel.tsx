@@ -234,7 +234,6 @@ const AdminPanel = () => {
     }
   };
 
-  // Componente de paso clickeable
   const PasoIndicator = ({ numero, titulo, activo, completado, onClick }: { numero: number; titulo: string; activo: boolean; completado: boolean; onClick: () => void }) => (
     <div 
       onClick={onClick}
@@ -292,13 +291,11 @@ const AdminPanel = () => {
       padding: '40px 20px'
     }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h1 style={{ color: 'white', fontSize: '32px', marginBottom: '10px' }}>⚙️ Panel de Administración</h1>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '16px' }}>Configura el sistema de encuestas en 3 simples pasos</p>
         </div>
 
-        {/* Pasos indicadores clickeables */}
         <div style={{ 
           background: 'white', 
           borderRadius: '16px', 
@@ -354,7 +351,6 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* Botones de navegación entre pasos */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
           {pasoActual > 1 && (
             <button
@@ -403,7 +399,6 @@ const AdminPanel = () => {
           )}
         </div>
 
-        {/* Contenido dinámico por paso */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
           
           {/* PASO 1 */}
@@ -636,7 +631,7 @@ const AdminPanel = () => {
                           <th style={{ padding: '10px', textAlign: 'left' }}>Nombre</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Curso</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Sección</th>
-                        </td>
+                        </tr>
                       </thead>
                       <tbody>
                         {previewData.slice(0, 10).map((item, idx) => (
@@ -660,7 +655,6 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* Mensajes */}
           {mensaje && (
             <div style={{
               marginTop: '20px',
