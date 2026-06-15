@@ -269,7 +269,7 @@ export default function Login() {
                   color: '#5f6368',
                   fontWeight: '500'
                 }}>
-                  @uss.edu.pe
+                  
                 </span>
               </div>
               <div style={{
