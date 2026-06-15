@@ -15,6 +15,7 @@ export default function Login() {
   const [nombreUsuario, setNombreUsuario] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dominioEncontrado, setDominioEncontrado] = useState('') // Opcional
 
   const ingresar = async () => {
     if (!nombreUsuario.trim()) {
@@ -24,83 +25,104 @@ export default function Login() {
 
     setLoading(true)
     setError('')
+    setDominioEncontrado('')
 
     try {
-      const emailCompleto = `${nombreUsuario}@uss.edu.pe`.toLowerCase()
-
-      // VERIFICAR SI ES ADMINISTRADOR
-      const admin = await esAdmin(emailCompleto);
+      const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
       
-      if (admin) {
-        console.log('👑 Usuario administrador detectado:', emailCompleto);
-        localStorage.setItem('isAdmin', 'true');
-        localStorage.setItem('adminEmail', emailCompleto);
-        window.location.href = '/admin';
-        setLoading(false);
-        return;
-      }
-
-      // 🔴 CORREGIDO: Obtener configuración completa (URL + spreadsheetId)
-      const config = await getConfigCompleta();
+      // Lista de dominios a probar (en orden de prioridad)
+      const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
+      
+      let emailEncontrado = ''
+      let datosEstudiante = null
+      let errorDetalle = ''
+      
+      // Obtener configuración completa (URL del script + spreadsheetId)
+      const config = await getConfigCompleta()
       
       if (!config.scriptUrl) {
-        setError('Error de configuración. Contacta al administrador.');
-        setLoading(false);
-        return;
-      }
-      
-      if (!config.spreadsheetId) {
-        console.warn('⚠️ No hay spreadsheetId configurado. El sistema podría no funcionar correctamente.');
-      }
-      
-      // 🔴 CORREGIDO: Incluir spreadsheetId en la URL
-      const url = `${config.scriptUrl}?email=${encodeURIComponent(emailCompleto)}&spreadsheetId=${config.spreadsheetId}`;
-
-      console.log('📡 Llamando a Google Script:', url)
-      console.log('📊 spreadsheetId enviado:', config.spreadsheetId)
-      
-      const response = await fetch(url)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      console.log('📦 Respuesta de Google Script:', data)
-
-      if (data.error) {
-        setError(data.error)
+        setError('Error de configuración. Contacta al administrador.')
         setLoading(false)
         return
       }
-
-      if (data.cursos && data.cursos.length > 0) {
-        console.log('📚 planEstudio del primer curso:', data.cursos[0]?.planEstudio);
-
-        const pendientes = data.cursos.filter((curso: Curso) => !curso.completado)
-
-        if (pendientes.length === 0) {
-          setError('🎉 ¡Felicidades! Ya has respondido todas las encuestas.')
+      
+      if (!config.spreadsheetId) {
+        console.warn('⚠️ No hay spreadsheetId configurado. El sistema podría no funcionar correctamente.')
+      }
+      
+      // 🔴 NUEVO: Probar cada dominio hasta encontrar un estudiante
+      for (const dominio of dominios) {
+        const emailProbar = `${nombreUsuarioLimpio}${dominio}`
+        
+        console.log(`🔍 Probando con: ${emailProbar}`)
+        
+        const url = `${config.scriptUrl}?email=${encodeURIComponent(emailProbar)}&spreadsheetId=${config.spreadsheetId}`
+        
+        try {
+          const response = await fetch(url)
+          const data = await response.json()
+          
+          // Si la respuesta es exitosa y tiene cursos
+          if (data.success && data.cursos && data.cursos.length > 0) {
+            emailEncontrado = emailProbar
+            datosEstudiante = data
+            setDominioEncontrado(dominio)
+            console.log(`✅ Estudiante encontrado con: ${emailProbar}`)
+            break
+          } else if (data.error) {
+            errorDetalle = data.error
+            console.log(`❌ No encontrado con ${emailProbar}: ${data.error}`)
+          }
+        } catch (error) {
+          console.log(`❌ Error probando ${emailProbar}:`, error)
+          errorDetalle = 'Error de conexión con el servidor'
+        }
+      }
+      
+      // Si no se encontró con ningún dominio
+      if (!emailEncontrado || !datosEstudiante) {
+        setError(`❌ Usuario "${nombreUsuarioLimpio}" no encontrado. Verifica que esté registrado en la base de datos.`)
+        setLoading(false)
+        return
+      }
+      
+      // 🔴 VERIFICAR SI ES ADMINISTRADOR (solo para usuarios con @uss.edu.pe)
+      const esDominioInstitucional = emailEncontrado.endsWith('@uss.edu.pe')
+      
+      if (esDominioInstitucional) {
+        const admin = await esAdmin(emailEncontrado)
+        if (admin) {
+          console.log('👑 Usuario administrador detectado:', emailEncontrado)
+          localStorage.setItem('isAdmin', 'true')
+          localStorage.setItem('adminEmail', emailEncontrado)
+          window.location.href = '/admin'
           setLoading(false)
           return
         }
-
-        // 🔴 GUARDAR también el spreadsheetId en localStorage para usarlo en el formulario
-        const datosAGuardar = {
-          email: emailCompleto,
-          cursos: data.cursos,
-          spreadsheetId: config.spreadsheetId // ← Agregar esto
-        };
-        
-        localStorage.setItem('eval_data', JSON.stringify(datosAGuardar))
-        
-        console.log('💾 Datos guardados en localStorage:', datosAGuardar)
-
-        window.location.href = '/formulario'
-      } else {
-        setError('❌ Usuario no encontrado o sin cursos asignados')
       }
-
+      
+      // SI ES ESTUDIANTE NORMAL
+      const pendientes = datosEstudiante.cursos.filter((curso: Curso) => !curso.completado)
+      
+      if (pendientes.length === 0) {
+        setError('🎉 ¡Felicidades! Ya has respondido todas las encuestas.')
+        setLoading(false)
+        return
+      }
+      
+      // 🔴 CRÍTICO: Guardar el email REAL que se encontró (ej: usuario@gmail.com)
+      const datosAGuardar = {
+        email: emailEncontrado,  // 🔴 ESTE ES EL EMAIL REAL
+        cursos: datosEstudiante.cursos,
+        spreadsheetId: config.spreadsheetId,
+        dominioUsado: dominioEncontrado
+      }
+      
+      localStorage.setItem('eval_data', JSON.stringify(datosAGuardar))
+      console.log('💾 Datos guardados en localStorage con email:', emailEncontrado)
+      
+      window.location.href = '/formulario'
+      
     } catch (error: unknown) {
       console.error('❌ Error:', error)
       
@@ -249,7 +271,7 @@ export default function Login() {
                   color: '#5f6368',
                   fontWeight: '500'
                 }}>
-                  @uss.edu.pe
+                  @uss.edu.pe (u otro)
                 </span>
               </div>
               <div style={{
@@ -257,7 +279,7 @@ export default function Login() {
                 color: '#5f6368',
                 marginTop: '8px'
               }}>
-                Ingresa solo tu nombre de usuario sin el @uss.edu.pe
+                Ingresa solo tu nombre de usuario (sin @). El sistema buscará automáticamente con @uss.edu.pe, @gmail.com, @hotmail.com, etc.
               </div>
             </div>
 
@@ -302,6 +324,21 @@ export default function Login() {
                 {loading ? 'Verificando...' : 'Siguiente'}
               </button>
             </div>
+
+            {/* Mostrar con qué dominio se encontró */}
+            {dominioEncontrado && !error && !loading && (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: '#e8f5e1',
+                color: '#1a5e20',
+                borderRadius: '8px',
+                fontSize: '13px',
+                textAlign: 'center'
+              }}>
+                ✅ Ingresaste con {dominioEncontrado}
+              </div>
+            )}
 
             {error && (
               <div style={{
