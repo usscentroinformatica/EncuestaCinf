@@ -33,7 +33,7 @@ export default function Login() {
       // Lista de dominios a probar
       const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
       
-      let emailEncontrado = ''  // 🔴 Este es el email REAL que funciona
+      let emailEncontrado = ''
       let datosEstudiante = null
       
       const config = await getConfigCompleta()
@@ -48,7 +48,7 @@ export default function Login() {
         console.warn('⚠️ No hay spreadsheetId configurado.')
       }
       
-      // 🔴 PRIMERO: Verificar si es ADMINISTRADOR (solo con @uss.edu.pe)
+      // PRIMERO: Verificar si es ADMINISTRADOR (solo con @uss.edu.pe)
       const emailAdmin = `${nombreUsuarioLimpio}@uss.edu.pe`
       const esAdministrador = await esAdmin(emailAdmin)
       
@@ -61,7 +61,7 @@ export default function Login() {
         return
       }
       
-      // 🔴 SEGUNDO: Buscar como ESTUDIANTE en la base de datos
+      // SEGUNDO: Buscar como ESTUDIANTE en la base de datos
       for (const dominio of dominios) {
         const emailProbar = `${nombreUsuarioLimpio}${dominio}`
         
@@ -74,10 +74,14 @@ export default function Login() {
           const data = await response.json()
           
           if (data.success && data.cursos && data.cursos.length > 0) {
-            emailEncontrado = emailProbar  // 🔴 GUARDAR EL EMAIL REAL
+            // 🔴 CORREGIDO: Usar el emailReal que devuelve el script (el email REAL de la BD)
+            // Si el script devuelve emailReal, usar ese; si no, usar emailProbar
+            const emailReal = data.emailReal || data.email || emailProbar
+            
+            emailEncontrado = emailReal
             datosEstudiante = data
             setDominioEncontrado(dominio)
-            console.log(`✅ Estudiante encontrado con: ${emailEncontrado}`)
+            console.log(`✅ Estudiante encontrado con email REAL de BD: ${emailEncontrado}`)
             break
           } else if (data.error) {
             console.log(`❌ No encontrado con ${emailProbar}: ${data.error}`)
@@ -103,16 +107,16 @@ export default function Login() {
         return
       }
       
-      // 🔴 CRÍTICO: Guardar el email REAL que se encontró (ej: usuario@gmail.com)
+      // Guardar el email REAL que está en la base de datos
       const datosAGuardar = {
-        email: emailEncontrado,  // 🔴 ESTE ES EL EMAIL CORRECTO
+        email: emailEncontrado,  // 🔴 Este es el email REAL de la BD (ej: usuario@gmail.com)
         cursos: datosEstudiante.cursos,
         spreadsheetId: config.spreadsheetId,
         dominioUsado: dominioEncontrado
       }
       
       localStorage.setItem('eval_data', JSON.stringify(datosAGuardar))
-      console.log('💾 EMAIL GUARDADO EN LOCALSTORAGE:', emailEncontrado)  // 🔴 Verificar en consola
+      console.log('💾 EMAIL GUARDADO EN LOCALSTORAGE:', emailEncontrado)
       console.log('💾 Datos completos:', datosAGuardar)
       
       window.location.href = '/formulario'
