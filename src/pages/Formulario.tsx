@@ -73,7 +73,7 @@ export default function Formulario() {
   const [exitoModal, setExitoModal] = useState(false)
   const [configLoading, setConfigLoading] = useState(true)
   const [apiUrl, setApiUrl] = useState('')
-  const [spreadsheetId, setSpreadsheetId] = useState('') // 🔴 NUEVO: estado para spreadsheetId
+  const [spreadsheetId, setSpreadsheetId] = useState('')
 
   // Cargar configuración desde Firebase
   useEffect(() => {
@@ -90,7 +90,6 @@ export default function Formulario() {
             console.log('✅ API URL cargada:', config.googleScriptUrl);
           }
           
-          // 🔴 NUEVO: Cargar spreadsheetId desde Firebase
           if (config.spreadsheetId) {
             setSpreadsheetId(config.spreadsheetId);
             console.log('✅ spreadsheetId cargado:', config.spreadsheetId);
@@ -125,7 +124,6 @@ export default function Formulario() {
     setDatos({...parsed, cursos: cursosPendientes})
     setCursoSel(cursosPendientes[0].curso)
     
-    // 🔴 NUEVO: Si hay spreadsheetId en localStorage, usarlo
     if (parsed.spreadsheetId && !spreadsheetId) {
       setSpreadsheetId(parsed.spreadsheetId);
       console.log('📦 spreadsheetId recuperado de localStorage:', parsed.spreadsheetId);
@@ -159,7 +157,6 @@ export default function Formulario() {
       return;
     }
 
-    // 🔴 NUEVO: Validar que haya spreadsheetId
     if (!spreadsheetId) {
       setError('Error de configuración: No se encontró el ID de la hoja de cálculo. Contacta al administrador.');
       return;
@@ -177,15 +174,14 @@ export default function Formulario() {
       
       console.log('🌐 Proxy URL:', PROXY_URL);
       console.log('📦 Enviando a script:', apiUrl);
-      console.log('🔑 spreadsheetId enviado:', spreadsheetId); // 🔴 LOG para verificar
+      console.log('🔑 spreadsheetId enviado:', spreadsheetId);
       
-      // 🔴 CORREGIDO: Incluir spreadsheetId en el body
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: apiUrl,
-          spreadsheetId: spreadsheetId, // 🔴 CRÍTICO: AGREGAR ESTO
+          spreadsheetId: spreadsheetId,
           email: datos.email,
           nombre: info.nombre,
           planestudio: info.planEstudio || '',
@@ -207,7 +203,6 @@ export default function Formulario() {
         const cursosPendientes = datosActualizados.cursos.filter((c: any) => !c.completado);
         
         if (cursosPendientes.length > 0) {
-          // 🔴 Mantener el spreadsheetId en localStorage
           localStorage.setItem('eval_data', JSON.stringify({
             ...datosActualizados,
             spreadsheetId: spreadsheetId
@@ -257,7 +252,13 @@ export default function Formulario() {
         </div>
       </header>
 
-      <main style={{ padding: '40px 20px' }}>
+      {/* 🔴 CORREGIDO: main ahora centra el contenido horizontalmente */}
+      <main style={{ 
+        flex: 1, 
+        padding: '40px 20px', 
+        display: 'flex', 
+        justifyContent: 'center'  // 🔴 Esto centra el contenido
+      }}>
         <div style={{ width: '100%', maxWidth: '680px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 6px rgba(32,33,36,0.28)', overflow: 'hidden' }}>
           <div style={{ backgroundColor: '#5a2290', color: 'white', padding: '32px 48px', textAlign: 'center' }}>
             <h1 style={{ margin: 0, fontSize: '28px', fontWeight: '400' }}>ENCUESTA DE SATISFACCIÓN DOCENTE</h1>
