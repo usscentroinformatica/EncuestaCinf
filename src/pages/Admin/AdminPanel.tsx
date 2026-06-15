@@ -18,6 +18,14 @@ const AdminPanel = () => {
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
 
+  // 🔴 Función para cerrar sesión
+  const cerrarSesion = () => {
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem('adminEmail');
+    localStorage.removeItem('eval_data');
+    window.location.href = '/';
+  };
+
   useEffect(() => {
     cargarConfiguracion();
   }, []);
@@ -291,11 +299,57 @@ const AdminPanel = () => {
       padding: '40px 20px'
     }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ color: 'white', fontSize: '32px', marginBottom: '10px' }}>⚙️ Panel de Administración</h1>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '16px' }}>Configura el sistema de encuestas en 3 simples pasos</p>
+        
+        {/* Header con botón de logout */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: '30px',
+          background: 'rgba(255,255,255,0.1)',
+          padding: '15px 25px',
+          borderRadius: '12px',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <div>
+            <h1 style={{ color: 'white', fontSize: '24px', margin: 0 }}>⚙️ Panel de Administración</h1>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', margin: '5px 0 0' }}>
+              {configActual?.periodo ? `Período activo: ${configActual.periodo}` : 'Configura el sistema'}
+            </p>
+          </div>
+          
+          {/* 🔴 Botón de cerrar sesión */}
+          <button
+            onClick={cerrarSesion}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              background: 'rgba(255,255,255,0.2)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '8px',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#c5221f';
+              e.currentTarget.style.borderColor = '#c5221f';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+            }}
+          >
+            <span style={{ fontSize: '16px' }}>🚪</span>
+            Cerrar sesión
+          </button>
         </div>
 
+        {/* Pasos indicadores clickeables */}
         <div style={{ 
           background: 'white', 
           borderRadius: '16px', 
@@ -351,6 +405,7 @@ const AdminPanel = () => {
           </div>
         </div>
 
+        {/* Botones de navegación entre pasos */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
           {pasoActual > 1 && (
             <button
@@ -399,6 +454,7 @@ const AdminPanel = () => {
           )}
         </div>
 
+        {/* Contenido dinámico por paso */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
           
           {/* PASO 1 */}
