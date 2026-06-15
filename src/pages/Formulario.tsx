@@ -73,6 +73,7 @@ export default function Formulario() {
   const [exitoModal, setExitoModal] = useState(false)
   const [configLoading, setConfigLoading] = useState(true)
   const [apiUrl, setApiUrl] = useState('')
+  const [spreadsheetId, setSpreadsheetId] = useState('') // 🔴 NUEVO: estado para spreadsheetId
 
   // Cargar configuración desde Firebase
   useEffect(() => {
@@ -87,6 +88,14 @@ export default function Formulario() {
           if (config.googleScriptUrl) {
             setApiUrl(config.googleScriptUrl);
             console.log('✅ API URL cargada:', config.googleScriptUrl);
+          }
+          
+          // 🔴 NUEVO: Cargar spreadsheetId desde Firebase
+          if (config.spreadsheetId) {
+            setSpreadsheetId(config.spreadsheetId);
+            console.log('✅ spreadsheetId cargado:', config.spreadsheetId);
+          } else {
+            console.warn('⚠️ No hay spreadsheetId en la configuración');
           }
         } else {
           console.error('❌ No hay configuración en Firebase');
@@ -115,6 +124,12 @@ export default function Formulario() {
     }
     setDatos({...parsed, cursos: cursosPendientes})
     setCursoSel(cursosPendientes[0].curso)
+    
+    // 🔴 NUEVO: Si hay spreadsheetId en localStorage, usarlo
+    if (parsed.spreadsheetId && !spreadsheetId) {
+      setSpreadsheetId(parsed.spreadsheetId);
+      console.log('📦 spreadsheetId recuperado de localStorage:', parsed.spreadsheetId);
+    }
   }, [])
 
   if (configLoading || !datos || !cursoSel) {
@@ -144,6 +159,12 @@ export default function Formulario() {
       return;
     }
 
+    // 🔴 NUEVO: Validar que haya spreadsheetId
+    if (!spreadsheetId) {
+      setError('Error de configuración: No se encontró el ID de la hoja de cálculo. Contacta al administrador.');
+      return;
+    }
+
     setEnviando(true);
     setError('');
 
@@ -156,12 +177,15 @@ export default function Formulario() {
       
       console.log('🌐 Proxy URL:', PROXY_URL);
       console.log('📦 Enviando a script:', apiUrl);
+      console.log('🔑 spreadsheetId enviado:', spreadsheetId); // 🔴 LOG para verificar
       
+      // 🔴 CORREGIDO: Incluir spreadsheetId en el body
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: apiUrl,
+          spreadsheetId: spreadsheetId, // 🔴 CRÍTICO: AGREGAR ESTO
           email: datos.email,
           nombre: info.nombre,
           planestudio: info.planEstudio || '',
@@ -183,7 +207,11 @@ export default function Formulario() {
         const cursosPendientes = datosActualizados.cursos.filter((c: any) => !c.completado);
         
         if (cursosPendientes.length > 0) {
-          localStorage.setItem('eval_data', JSON.stringify(datosActualizados));
+          // 🔴 Mantener el spreadsheetId en localStorage
+          localStorage.setItem('eval_data', JSON.stringify({
+            ...datosActualizados,
+            spreadsheetId: spreadsheetId
+          }));
           setExitoModal(true);
           setTimeout(() => window.location.href = '/formulario', 3000);
         } else {
