@@ -205,7 +205,6 @@ const AdminPanel = () => {
       return;
     }
 
-    const activeSpreadsheetId = spreadsheetId || configActual?.spreadsheetId;
     const activeSpreadsheetUrl = configActual?.spreadsheetUrl;
 
     setSubiendoBase(true);
@@ -216,15 +215,15 @@ const AdminPanel = () => {
       
       // 🔴 Enviar el spreadsheetId para que el script sepa exactamente qué hoja usar
       const response = await fetch(PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scriptUrl: googleScriptUrl,
-          spreadsheetId: activeSpreadsheetId,
-          action: 'actualizarBase',
-          data: previewData
-        })
-      });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    scriptUrl: googleScriptUrl,
+    spreadsheetId: spreadsheetId,  // 🔴 Enviar el ID
+    action: 'actualizarBase',
+    data: previewData
+  })
+});
 
       const result = await response.json();
 
