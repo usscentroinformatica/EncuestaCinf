@@ -1,7 +1,6 @@
-// src/pages/Login.tsx
 import { useState } from 'react'
 import logoUss from '../assets/uss.png'
-import { esAdmin, getGoogleScriptUrl } from '../services/authService'
+import { esAdmin, getConfigCompleta } from '../services/authService'
 
 interface Curso {
   nombre: string;
@@ -41,18 +40,24 @@ export default function Login() {
         return;
       }
 
-      // SI NO ES ADMIN, CONTINUAR CON EL FLUJO NORMAL
-      const GOOGLE_SCRIPT_URL = await getGoogleScriptUrl();
+      // 🔴 CORREGIDO: Obtener configuración completa (URL + spreadsheetId)
+      const config = await getConfigCompleta();
       
-      if (!GOOGLE_SCRIPT_URL) {
+      if (!config.scriptUrl) {
         setError('Error de configuración. Contacta al administrador.');
         setLoading(false);
         return;
       }
       
-      const url = `${GOOGLE_SCRIPT_URL}?email=${encodeURIComponent(emailCompleto)}`;
+      if (!config.spreadsheetId) {
+        console.warn('⚠️ No hay spreadsheetId configurado. El sistema podría no funcionar correctamente.');
+      }
+      
+      // 🔴 CORREGIDO: Incluir spreadsheetId en la URL
+      const url = `${config.scriptUrl}?email=${encodeURIComponent(emailCompleto)}&spreadsheetId=${config.spreadsheetId}`;
 
       console.log('📡 Llamando a Google Script:', url)
+      console.log('📊 spreadsheetId enviado:', config.spreadsheetId)
       
       const response = await fetch(url)
       
@@ -80,9 +85,11 @@ export default function Login() {
           return
         }
 
+        // 🔴 GUARDAR también el spreadsheetId en localStorage para usarlo en el formulario
         const datosAGuardar = {
           email: emailCompleto,
-          cursos: data.cursos
+          cursos: data.cursos,
+          spreadsheetId: config.spreadsheetId // ← Agregar esto
         };
         
         localStorage.setItem('eval_data', JSON.stringify(datosAGuardar))
