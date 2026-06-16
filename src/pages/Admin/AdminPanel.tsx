@@ -146,80 +146,119 @@ const AdminPanel = () => {
     }
   };
 
-  // 🔥🔥🔥 FUNCIÓN CORREGIDA - CON LIMPIEZA Y RESET DEL INPUT 🔥🔥🔥
   const procesarExcel = (file: File) => {
-    // 🔥 LIMPIAR DATOS VIEJOS
-    setPreviewData([]);
-    setMensaje('🔄 Procesando archivo...');
-    
-    // 🔥 RESETEAR EL INPUT FILE PARA PERMITIR SUBIR EL MISMO ARCHIVO
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        let sheetName = 'data';
-        if (!workbook.SheetNames.includes(sheetName)) {
-          sheetName = workbook.SheetNames[0];
-          setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
+  // 🔥 FORZAR LIMPIEZA TOTAL
+  setPreviewData([]);
+  setMensaje('');
+  
+  // 🔥 FORZAR RESET DEL INPUT
+  const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+  if (fileInput) {
+    fileInput.value = '';
+  }
+  
+  // 🔥 LIMPIAR LOCALSTORAGE
+  localStorage.removeItem('previewData');
+  sessionStorage.removeItem('previewData');
+  
+  // Verificar que el archivo no esté vacío
+  if (!file || file.size === 0) {
+    setMensaje('❌ El archivo está vacío');
+    return;
+  }
+
+  // Verificar extensión
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
+    setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
+    return;
+  }
+
+  setMensaje(`🔄 Procesando "${file.name}"...`);
+
+  const reader = new FileReader();
+  
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      console.log('📚 Hojas encontradas:', workbook.SheetNames);
+      
+      // 🔥 USAR LA PRIMERA HOJA
+      const sheetName = workbook.SheetNames[0];
+      const hojaData = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(hojaData);
+      
+      console.log('📄 Total de filas:', jsonData.length);
+      console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
+      
+      // 🔥 VERIFICAR QUE EMaiCrec EXISTA
+      if (jsonData.length > 0) {
+        const columnas = Object.keys(jsonData[0]);
+        if (columnas.includes('EMaiCrec')) {
+          console.log('✅ EMaiCrec ENCONTRADO en el archivo');
+        } else {
+          console.warn('⚠️ EMaiCrec NO ENCONTRADO. Columnas:', columnas);
         }
-        
-        const hojaData = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(hojaData);
-        
-        // 🔥 EMaiCrec es el PRIMERO
-        const estudiantes = jsonData
-          .map((row: any) => ({
-            correo: row['EMaiCrec'] || row['Correo'] || row['Email'] || row['EMail1'] || row['EMail2'] || '',
-            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
-            planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
-            curso: row['Curso'] || '',
-            seccion: row['Seccion'] || row['PEAD'] || '',
-            docente: row['Docente'] || ''
-          }))
-          .filter(est => {
-            const tieneCorreo = est.correo && est.correo.includes('@');
-            const tieneNombre = est.nombre && est.nombre.length > 0;
-            const tieneCurso = est.curso && est.curso.length > 0;
-            return tieneCorreo && tieneNombre && tieneCurso;
-          });
-        
-        // Eliminar duplicados
-        const uniqueEstudiantes = [];
-        const emailsVistos = new Set();
-        
-        for (const est of estudiantes) {
-          if (!emailsVistos.has(est.correo)) {
-            emailsVistos.add(est.correo);
-            uniqueEstudiantes.push(est);
-          }
-        }
-        
-        // 🔥 ACTUALIZAR CON LOS NUEVOS DATOS
-        setPreviewData(uniqueEstudiantes);
-        setMensaje(`📊 Hoja "${sheetName}": ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
-        
-        console.log('✅ Nuevos datos cargados:', uniqueEstudiantes.length);
-        
-      } catch (error: any) {
-        console.error('❌ Error:', error);
-        setMensaje(`❌ Error al procesar: ${error.message}`);
-        setPreviewData([]);
       }
-    };
-    
-    reader.onerror = () => {
-      setMensaje('❌ Error al leer el archivo');
+      
+      // 🔥 MAPEAR DATOS - EMaiCrec es el PRIMERO
+      const estudiantes = jsonData
+        .map((row: any) => ({
+          correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || row['EMail1']?.trim() || row['EMail2']?.trim() || '',
+          nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
+          planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
+          curso: row['Curso'] || '',
+          seccion: row['Seccion'] || row['PEAD'] || '',
+          docente: row['Docente'] || ''
+        }))
+        .filter(est => {
+          const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
+          const tieneNombre = est.nombre && est.nombre.length > 0;
+          return tieneCorreo && tieneNombre;
+        });
+      
+      console.log(`✅ Registros válidos: ${estudiantes.length}`);
+      
+      // 🔥 ELIMINAR DUPLICADOS
+      const uniqueEstudiantes = [];
+      const emailsVistos = new Set();
+      
+      for (const est of estudiantes) {
+        const emailLower = est.correo.toLowerCase();
+        if (!emailsVistos.has(emailLower)) {
+          emailsVistos.add(emailLower);
+          uniqueEstudiantes.push(est);
+        }
+      }
+      
+      // 🔥 ACTUALIZAR CON DATOS NUEVOS
+      setPreviewData(uniqueEstudiantes);
+      setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
+      
+      // 🔥 MOSTRAR PRIMEROS 3 REGISTROS PARA VERIFICAR
+      if (uniqueEstudiantes.length > 0) {
+        console.log('🔍 Primeros 3 registros:');
+        uniqueEstudiantes.slice(0, 3).forEach((est, i) => {
+          console.log(`  ${i+1}. ${est.correo} - ${est.nombre}`);
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error:', error);
+      setMensaje(`❌ Error: ${error.message}`);
       setPreviewData([]);
-    };
-    
-    reader.readAsArrayBuffer(file);
+    }
   };
+  
+  reader.onerror = () => {
+    setMensaje('❌ Error al leer el archivo');
+    setPreviewData([]);
+  };
+  
+  reader.readAsArrayBuffer(file);
+};
 
   const actualizarBaseUnificada = async () => {
     if (!googleScriptUrl) {
