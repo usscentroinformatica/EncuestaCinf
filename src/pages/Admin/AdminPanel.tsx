@@ -162,6 +162,7 @@ const AdminPanel = () => {
   };
 
   // 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - CORREGIDA 🔥🔥🔥
+// 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - CORREGIDA 🔥🔥🔥
 const procesarExcel = (file: File) => {
   limpiarDatosCompletamente();
   
@@ -183,7 +184,6 @@ const procesarExcel = (file: File) => {
   
   reader.onload = (e) => {
     try {
-      // 🔥🔥🔥 CAMBIAR "data" POR "fileData" 🔥🔥🔥
       const fileData = new Uint8Array(e.target?.result as ArrayBuffer);
       const workbook = XLSX.read(fileData, { 
         type: 'array',
@@ -206,21 +206,30 @@ const procesarExcel = (file: File) => {
         return;
       }
       
-      let sheetName = 'data';
-      if (!workbook.SheetNames.includes(sheetName)) {
+      // 🔥🔥🔥 BUSCAR CUALQUIER HOJA QUE CONTENGA "data" (data, data1, Data, DATA, etc.)
+      let sheetName = workbook.SheetNames.find(name => 
+        name.toLowerCase().includes('data')
+      );
+      
+      // Si no encuentra ninguna hoja con "data", usa la PRIMERA hoja
+      if (!sheetName) {
         sheetName = workbook.SheetNames[0];
-        setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
+        setMensaje(`⚠️ No se encontró hoja con "data", usando la primera: "${sheetName}"`);
+      } else {
+        setMensaje(`✅ Usando hoja: "${sheetName}"`);
       }
       
+      // Obtener la hoja por su nombre
       const hojaData = workbook.Sheets[sheetName];
       
-      // Verificar que la hoja exista
+      // Verificar que la hoja exista y tenga datos
       if (!hojaData) {
-        setMensaje(`❌ La hoja "${sheetName}" no existe`);
+        setMensaje(`❌ La hoja "${sheetName}" no existe o está vacía`);
         setPreviewData([]);
         return;
       }
       
+      // Convertir a JSON
       const jsonData = XLSX.utils.sheet_to_json(hojaData, {
         defval: '',
         blankrows: false,
