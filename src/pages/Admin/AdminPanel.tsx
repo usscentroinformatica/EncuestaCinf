@@ -159,14 +159,14 @@ const AdminPanel = () => {
       const jsonData = XLSX.utils.sheet_to_json(hojaData);
       
       const estudiantes = jsonData
-        .map((row: any) => ({
-          correo: row['EMail1'] || row['EMail2'] || row['EMaiCrec'] || row['Correo'] || '',
-          nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
-          planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
-          curso: row['Curso'] || '',
-          seccion: row['Seccion'] || row['PEAD'] || '',
-          docente: row['Docente'] || ''
-        }))
+  .map((row: any) => ({
+    correo: row['EMaiCrec'] || row['Correo'] || row['Email'] || row['EMail1'] || row['EMail2'] || '',
+    nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
+    planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
+    curso: row['Curso'] || '',
+    seccion: row['Seccion'] || row['PEAD'] || '',
+    docente: row['Docente'] || ''
+  }))
         .filter(est => {
           const tieneCorreo = est.correo && est.correo.includes('@');
           const tieneNombre = est.nombre && est.nombre.length > 0;
