@@ -1,5 +1,5 @@
 // src/pages/Admin/AdminPanel.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase/config';
 import { ref, set, get } from 'firebase/database';
 import * as XLSX from 'xlsx';
@@ -17,6 +17,9 @@ const AdminPanel = () => {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
+
+  // 🔥 REFERENCIA AL INPUT FILE
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cerrarSesion = () => {
     localStorage.removeItem('isAdmin');
@@ -143,54 +146,78 @@ const AdminPanel = () => {
     }
   };
 
+  // 🔥🔥🔥 FUNCIÓN CORREGIDA - CON LIMPIEZA Y RESET DEL INPUT 🔥🔥🔥
   const procesarExcel = (file: File) => {
-  // 🔥 LIMPIAR DATOS VIEJOS ANTES DE PROCESAR
-  setPreviewData([]);
-  setMensaje('');
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const data = new Uint8Array(e.target?.result as ArrayBuffer);
-    const workbook = XLSX.read(data, { type: 'array' });
+    // 🔥 LIMPIAR DATOS VIEJOS
+    setPreviewData([]);
+    setMensaje('🔄 Procesando archivo...');
     
-    let sheetName = 'data';
-    if (!workbook.SheetNames.includes(sheetName)) {
-      sheetName = workbook.SheetNames[0];
-      setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
+    // 🔥 RESETEAR EL INPUT FILE PARA PERMITIR SUBIR EL MISMO ARCHIVO
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-      
-      const hojaData = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(hojaData);
-      
-      const estudiantes = jsonData
-  .map((row: any) => ({
-    correo: row['EMaiCrec'] || row['Correo'] || row['Email'] || row['EMail1'] || row['EMail2'] || '',
-    nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
-    planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
-    curso: row['Curso'] || '',
-    seccion: row['Seccion'] || row['PEAD'] || '',
-    docente: row['Docente'] || ''
-  }))
-        .filter(est => {
-          const tieneCorreo = est.correo && est.correo.includes('@');
-          const tieneNombre = est.nombre && est.nombre.length > 0;
-          const tieneCurso = est.curso && est.curso.length > 0;
-          return tieneCorreo && tieneNombre && tieneCurso;
-        });
-      
-      const uniqueEstudiantes = [];
-      const emailsVistos = new Set();
-      
-      for (const est of estudiantes) {
-        if (!emailsVistos.has(est.correo)) {
-          emailsVistos.add(est.correo);
-          uniqueEstudiantes.push(est);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        let sheetName = 'data';
+        if (!workbook.SheetNames.includes(sheetName)) {
+          sheetName = workbook.SheetNames[0];
+          setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
         }
+        
+        const hojaData = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(hojaData);
+        
+        // 🔥 EMaiCrec es el PRIMERO
+        const estudiantes = jsonData
+          .map((row: any) => ({
+            correo: row['EMaiCrec'] || row['Correo'] || row['Email'] || row['EMail1'] || row['EMail2'] || '',
+            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
+            planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
+            curso: row['Curso'] || '',
+            seccion: row['Seccion'] || row['PEAD'] || '',
+            docente: row['Docente'] || ''
+          }))
+          .filter(est => {
+            const tieneCorreo = est.correo && est.correo.includes('@');
+            const tieneNombre = est.nombre && est.nombre.length > 0;
+            const tieneCurso = est.curso && est.curso.length > 0;
+            return tieneCorreo && tieneNombre && tieneCurso;
+          });
+        
+        // Eliminar duplicados
+        const uniqueEstudiantes = [];
+        const emailsVistos = new Set();
+        
+        for (const est of estudiantes) {
+          if (!emailsVistos.has(est.correo)) {
+            emailsVistos.add(est.correo);
+            uniqueEstudiantes.push(est);
+          }
+        }
+        
+        // 🔥 ACTUALIZAR CON LOS NUEVOS DATOS
+        setPreviewData(uniqueEstudiantes);
+        setMensaje(`📊 Hoja "${sheetName}": ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
+        
+        console.log('✅ Nuevos datos cargados:', uniqueEstudiantes.length);
+        
+      } catch (error: any) {
+        console.error('❌ Error:', error);
+        setMensaje(`❌ Error al procesar: ${error.message}`);
+        setPreviewData([]);
       }
-      
-      setPreviewData(uniqueEstudiantes);
-      setMensaje(`📊 Hoja "${sheetName}": ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
     };
+    
+    reader.onerror = () => {
+      setMensaje('❌ Error al leer el archivo');
+      setPreviewData([]);
+    };
+    
     reader.readAsArrayBuffer(file);
   };
 
@@ -221,7 +248,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: googleScriptUrl,
-          spreadsheetId: spreadsheetId,
+          spreadsheetId: spreadsheetId || configActual?.spreadsheetId,
           action: 'actualizarBase',
           data: previewData
         })
@@ -646,6 +673,7 @@ const AdminPanel = () => {
                   transition: 'all 0.3s ease'
                 }}>
                   <input
+                    ref={fileInputRef}  // 🔥 REFERENCIA AL INPUT
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => {
@@ -662,7 +690,7 @@ const AdminPanel = () => {
                   </label>
                 </div>
                 <small style={{ color: '#666', display: 'block', marginTop: '8px' }}>
-                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: EMail1, Apellido, Nombre, Curso, etc.
+                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, etc.
                 </small>
               </div>
 
@@ -697,7 +725,7 @@ const AdminPanel = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead style={{ position: 'sticky', top: 0 }}>
                         <tr style={{ background: '#5a2290', color: 'white' }}>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo (EMaiCrec)</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Nombre</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Curso</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Sección</th>
