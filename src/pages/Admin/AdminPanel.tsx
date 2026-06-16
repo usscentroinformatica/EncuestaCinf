@@ -17,7 +17,7 @@ const AdminPanel = () => {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
-  const [nombreArchivo, setNombreArchivo] = useState(''); // 🔥 NUEVO: para mostrar qué archivo está cargado
+  const [nombreArchivo, setNombreArchivo] = useState('');
 
   // 🔥 REFERENCIA AL INPUT FILE
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,7 +31,6 @@ const AdminPanel = () => {
 
   useEffect(() => {
     cargarConfiguracion();
-    // 🔥 LIMPIAR DATOS AL CARGAR
     limpiarDatosCompletamente();
   }, []);
 
@@ -60,13 +59,12 @@ const AdminPanel = () => {
     }
   };
 
-  // 🔥🔥🔥 FUNCIÓN PARA LIMPIAR DATOS COMPLETAMENTE 🔥🔥🔥
+  // 🔥 FUNCIÓN PARA LIMPIAR DATOS COMPLETAMENTE
   const limpiarDatosCompletamente = () => {
     setPreviewData([]);
     setMensaje('');
     setNombreArchivo('');
     
-    // Resetear el input file
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -163,18 +161,15 @@ const AdminPanel = () => {
     }
   };
 
-  // 🔥🔥🔥 FUNCIÓN MEJORADA PARA PROCESAR EXCEL 🔥🔥🔥
+  // 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - EMaiCrec ES EL PRIMERO 🔥🔥🔥
   const procesarExcel = (file: File) => {
-    // 🔥 PRIMERO: LIMPIAR TODO
     limpiarDatosCompletamente();
     
-    // Verificar que el archivo no esté vacío
     if (!file || file.size === 0) {
       setMensaje('❌ El archivo está vacío');
       return;
     }
 
-    // Verificar extensión
     const extension = file.name.split('.').pop()?.toLowerCase();
     if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
       setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
@@ -203,7 +198,6 @@ const AdminPanel = () => {
         
         console.log('📚 Hojas encontradas:', workbook.SheetNames);
         
-        // Buscar la hoja "data"
         let sheetName = 'data';
         if (!workbook.SheetNames.includes(sheetName)) {
           sheetName = workbook.SheetNames[0];
@@ -212,7 +206,6 @@ const AdminPanel = () => {
         
         const hojaData = workbook.Sheets[sheetName];
         
-        // 🔥 CONVERTIR A JSON IGNORANDO FILAS VACÍAS
         const jsonData = XLSX.utils.sheet_to_json(hojaData, {
           defval: '',
           blankrows: false,
@@ -228,26 +221,24 @@ const AdminPanel = () => {
           return;
         }
 
-        // 🔥 MOSTRAR COLUMNAS PARA DEPURACIÓN
         console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
         console.log('🔍 Primeras 3 filas:', jsonData.slice(0, 3));
 
-        // 🔥 MAPEAR DATOS CON MÁS OPCIONES DE COLUMNAS
+        // 🔥🔥🔥 MAPEAR DATOS - EMaiCrec ES EL PRIMERO 🔥🔥🔥
         const estudiantes = jsonData
           .map((row: any) => {
-            // Buscar correo en múltiples columnas posibles
+            // 🔥 PRIORIDAD: EMaiCrec es el PRIMERO
             const correo = 
-              row['EMail1']?.trim() || 
-              row['EMail2']?.trim() || 
-              row['EMaiCrec']?.trim() || 
+              row['EMaiCrec']?.trim() ||   // ✅ PRIMERO
               row['Correo']?.trim() || 
               row['Email']?.trim() || 
               row['email']?.trim() || 
               row['E-mail']?.trim() || 
               row['CORREO']?.trim() || 
+              row['EMail1']?.trim() ||     // ✅ ÚLTIMO
+              row['EMail2']?.trim() || 
               '';
             
-            // Buscar nombre
             const nombre = 
               `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || 
               row['Nombre']?.trim() || 
@@ -256,14 +247,12 @@ const AdminPanel = () => {
               row['NOMBRE']?.trim() || 
               '';
             
-            // Buscar curso
             const curso = 
               row['Curso']?.trim() || 
               row['curso']?.trim() || 
               row['CURSO']?.trim() || 
               '';
             
-            // Buscar sección
             const seccion = 
               row['Seccion']?.trim() || 
               row['Sección']?.trim() || 
@@ -272,14 +261,12 @@ const AdminPanel = () => {
               row['SECCION']?.trim() || 
               '';
             
-            // Buscar docente
             const docente = 
               row['Docente']?.trim() || 
               row['docente']?.trim() || 
               row['DOCENTE']?.trim() || 
               '';
             
-            // Buscar plan de estudio
             const planEstudio = 
               row['PlanEst']?.trim() || 
               row['PlanEstudio']?.trim() || 
@@ -298,19 +285,18 @@ const AdminPanel = () => {
           .filter(est => {
             const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
             const tieneNombre = est.nombre && est.nombre.length > 0;
-            // 🔥 AHORA EL CURSO ES OPCIONAL, SOLO CORREO Y NOMBRE SON OBLIGATORIOS
             return tieneCorreo && tieneNombre;
           });
 
         console.log(`✅ Registros válidos: ${estudiantes.length}`);
 
         if (estudiantes.length === 0) {
-          setMensaje(`❌ No se encontraron registros válidos. Columnas esperadas: EMail1, Apellido, Nombre. Columnas encontradas: ${Object.keys(jsonData[0] || {}).join(', ')}`);
+          setMensaje(`❌ No se encontraron registros válidos. Columnas esperadas: EMaiCrec, Apellido, Nombre. Columnas encontradas: ${Object.keys(jsonData[0] || {}).join(', ')}`);
           setPreviewData([]);
           return;
         }
 
-        // 🔥 ELIMINAR DUPLICADOS POR CORREO
+        // Eliminar duplicados por correo
         const uniqueEstudiantes = [];
         const emailsVistos = new Set();
         let duplicados = 0;
@@ -329,11 +315,9 @@ const AdminPanel = () => {
           console.log(`⚠️ ${duplicados} correos duplicados eliminados`);
         }
 
-        // 🔥 ACTUALIZAR CON LOS NUEVOS DATOS
         setPreviewData(uniqueEstudiantes);
         setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
         
-        // 🔥 RESETEAR EL INPUT FILE
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -391,7 +375,6 @@ const AdminPanel = () => {
       if (result.success) {
         setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.`);
         
-        // 🔥 LIMPIAR DATOS DESPUÉS DE SUBIR
         setTimeout(() => {
           limpiarDatosCompletamente();
           cargarConfiguracion();
@@ -773,7 +756,7 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* 🔥🔥🔥 PASO 3 - MODIFICADO 🔥🔥🔥 */}
+          {/* PASO 3 */}
           {pasoActual === 3 && (
             <div>
               <h2 style={{ color: '#5a2290', marginBottom: '10px' }}>👥 Cargar estudiantes</h2>
@@ -798,7 +781,6 @@ const AdminPanel = () => {
                 </div>
               )}
 
-              {/* 🔥 BOTÓN PARA LIMPIAR DATOS */}
               <div style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
                 <button
                   onClick={limpiarDatosCompletamente}
@@ -841,13 +823,12 @@ const AdminPanel = () => {
                   transition: 'all 0.3s ease'
                 }}>
                   <input
-                    ref={fileInputRef}  // 🔥 REFERENCIA
+                    ref={fileInputRef}
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        // 🔥 LIMPIAR ANTES DE PROCESAR
                         limpiarDatosCompletamente();
                         procesarExcel(file);
                       }
@@ -862,7 +843,7 @@ const AdminPanel = () => {
                   </label>
                 </div>
                 <small style={{ color: '#666', display: 'block', marginTop: '8px' }}>
-                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: EMail1, Apellido, Nombre, Curso, etc.
+                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, etc.
                 </small>
               </div>
 
@@ -897,7 +878,7 @@ const AdminPanel = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead style={{ position: 'sticky', top: 0 }}>
                         <tr style={{ background: '#5a2290', color: 'white' }}>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo (EMaiCrec)</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Nombre</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Curso</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Sección</th>
