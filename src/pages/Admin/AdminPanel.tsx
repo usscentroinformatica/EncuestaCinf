@@ -1,5 +1,5 @@
 // src/pages/Admin/AdminPanel.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase/config';
 import { ref, set, get } from 'firebase/database';
 import * as XLSX from 'xlsx';
@@ -17,6 +17,10 @@ const AdminPanel = () => {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
+  const [nombreArchivo, setNombreArchivo] = useState(''); // 🔥 NUEVO: para mostrar qué archivo está cargado
+
+  // 🔥 REFERENCIA AL INPUT FILE
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cerrarSesion = () => {
     localStorage.removeItem('isAdmin');
@@ -27,6 +31,8 @@ const AdminPanel = () => {
 
   useEffect(() => {
     cargarConfiguracion();
+    // 🔥 LIMPIAR DATOS AL CARGAR
+    limpiarDatosCompletamente();
   }, []);
 
   const cargarConfiguracion = async () => {
@@ -52,6 +58,20 @@ const AdminPanel = () => {
     } catch (error) {
       console.error('Error cargando:', error);
     }
+  };
+
+  // 🔥🔥🔥 FUNCIÓN PARA LIMPIAR DATOS COMPLETAMENTE 🔥🔥🔥
+  const limpiarDatosCompletamente = () => {
+    setPreviewData([]);
+    setMensaje('');
+    setNombreArchivo('');
+    
+    // Resetear el input file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    console.log('🧹 Datos limpiados completamente');
   };
 
   const guardarConfiguracion = async () => {
@@ -143,50 +163,193 @@ const AdminPanel = () => {
     }
   };
 
+  // 🔥🔥🔥 FUNCIÓN MEJORADA PARA PROCESAR EXCEL 🔥🔥🔥
   const procesarExcel = (file: File) => {
+    // 🔥 PRIMERO: LIMPIAR TODO
+    limpiarDatosCompletamente();
+    
+    // Verificar que el archivo no esté vacío
+    if (!file || file.size === 0) {
+      setMensaje('❌ El archivo está vacío');
+      return;
+    }
+
+    // Verificar extensión
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
+      setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
+      return;
+    }
+
+    setNombreArchivo(file.name);
+    setMensaje(`🔄 Procesando "${file.name}"...`);
+
     const reader = new FileReader();
+    
     reader.onload = (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      let sheetName = 'data';
-      if (!workbook.SheetNames.includes(sheetName)) {
-        sheetName = workbook.SheetNames[0];
-        setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
-      }
-      
-      const hojaData = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(hojaData);
-      
-      const estudiantes = jsonData
-        .map((row: any) => ({
-          correo: row['EMail1'] || row['EMail2'] || row['EMaiCrec'] || row['Correo'] || '',
-          nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
-          planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
-          curso: row['Curso'] || '',
-          seccion: row['Seccion'] || row['PEAD'] || '',
-          docente: row['Docente'] || ''
-        }))
-        .filter(est => {
-          const tieneCorreo = est.correo && est.correo.includes('@');
-          const tieneNombre = est.nombre && est.nombre.length > 0;
-          const tieneCurso = est.curso && est.curso.length > 0;
-          return tieneCorreo && tieneNombre && tieneCurso;
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { 
+          type: 'array',
+          cellDates: false,
+          cellText: false,
+          cellNF: false,
+          sheetStubs: false,
+          bookVBA: false,
+          bookSheets: true,
+          bookProps: false,
+          bookFiles: false,
         });
-      
-      const uniqueEstudiantes = [];
-      const emailsVistos = new Set();
-      
-      for (const est of estudiantes) {
-        if (!emailsVistos.has(est.correo)) {
-          emailsVistos.add(est.correo);
-          uniqueEstudiantes.push(est);
+        
+        console.log('📚 Hojas encontradas:', workbook.SheetNames);
+        
+        // Buscar la hoja "data"
+        let sheetName = 'data';
+        if (!workbook.SheetNames.includes(sheetName)) {
+          sheetName = workbook.SheetNames[0];
+          setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
         }
+        
+        const hojaData = workbook.Sheets[sheetName];
+        
+        // 🔥 CONVERTIR A JSON IGNORANDO FILAS VACÍAS
+        const jsonData = XLSX.utils.sheet_to_json(hojaData, {
+          defval: '',
+          blankrows: false,
+          raw: true,
+          rawNumbers: true,
+        });
+        
+        console.log(`📄 Total de filas en el archivo: ${jsonData.length}`);
+        
+        if (jsonData.length === 0) {
+          setMensaje('❌ El archivo está vacío o no tiene datos válidos');
+          setPreviewData([]);
+          return;
+        }
+
+        // 🔥 MOSTRAR COLUMNAS PARA DEPURACIÓN
+        console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
+        console.log('🔍 Primeras 3 filas:', jsonData.slice(0, 3));
+
+        // 🔥 MAPEAR DATOS CON MÁS OPCIONES DE COLUMNAS
+        const estudiantes = jsonData
+          .map((row: any) => {
+            // Buscar correo en múltiples columnas posibles
+            const correo = 
+              row['EMail1']?.trim() || 
+              row['EMail2']?.trim() || 
+              row['EMaiCrec']?.trim() || 
+              row['Correo']?.trim() || 
+              row['Email']?.trim() || 
+              row['email']?.trim() || 
+              row['E-mail']?.trim() || 
+              row['CORREO']?.trim() || 
+              '';
+            
+            // Buscar nombre
+            const nombre = 
+              `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || 
+              row['Nombre']?.trim() || 
+              row['nombre']?.trim() || 
+              row['Nombres']?.trim() || 
+              row['NOMBRE']?.trim() || 
+              '';
+            
+            // Buscar curso
+            const curso = 
+              row['Curso']?.trim() || 
+              row['curso']?.trim() || 
+              row['CURSO']?.trim() || 
+              '';
+            
+            // Buscar sección
+            const seccion = 
+              row['Seccion']?.trim() || 
+              row['Sección']?.trim() || 
+              row['PEAD']?.trim() || 
+              row['seccion']?.trim() || 
+              row['SECCION']?.trim() || 
+              '';
+            
+            // Buscar docente
+            const docente = 
+              row['Docente']?.trim() || 
+              row['docente']?.trim() || 
+              row['DOCENTE']?.trim() || 
+              '';
+            
+            // Buscar plan de estudio
+            const planEstudio = 
+              row['PlanEst']?.trim() || 
+              row['PlanEstudio']?.trim() || 
+              row['PLAN_ESTUDIO']?.trim() || 
+              '';
+            
+            return {
+              correo,
+              nombre,
+              planEstudio,
+              curso,
+              seccion,
+              docente
+            };
+          })
+          .filter(est => {
+            const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
+            const tieneNombre = est.nombre && est.nombre.length > 0;
+            // 🔥 AHORA EL CURSO ES OPCIONAL, SOLO CORREO Y NOMBRE SON OBLIGATORIOS
+            return tieneCorreo && tieneNombre;
+          });
+
+        console.log(`✅ Registros válidos: ${estudiantes.length}`);
+
+        if (estudiantes.length === 0) {
+          setMensaje(`❌ No se encontraron registros válidos. Columnas esperadas: EMail1, Apellido, Nombre. Columnas encontradas: ${Object.keys(jsonData[0] || {}).join(', ')}`);
+          setPreviewData([]);
+          return;
+        }
+
+        // 🔥 ELIMINAR DUPLICADOS POR CORREO
+        const uniqueEstudiantes = [];
+        const emailsVistos = new Set();
+        let duplicados = 0;
+        
+        for (const est of estudiantes) {
+          const emailLower = est.correo.toLowerCase();
+          if (!emailsVistos.has(emailLower)) {
+            emailsVistos.add(emailLower);
+            uniqueEstudiantes.push(est);
+          } else {
+            duplicados++;
+          }
+        }
+        
+        if (duplicados > 0) {
+          console.log(`⚠️ ${duplicados} correos duplicados eliminados`);
+        }
+
+        // 🔥 ACTUALIZAR CON LOS NUEVOS DATOS
+        setPreviewData(uniqueEstudiantes);
+        setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
+        
+        // 🔥 RESETEAR EL INPUT FILE
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+      } catch (error: any) {
+        console.error('❌ Error procesando Excel:', error);
+        setMensaje(`❌ Error al procesar: ${error.message}`);
+        setPreviewData([]);
       }
-      
-      setPreviewData(uniqueEstudiantes);
-      setMensaje(`📊 Hoja "${sheetName}": ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
     };
+    
+    reader.onerror = () => {
+      setMensaje('❌ Error al leer el archivo');
+      setPreviewData([]);
+    };
+    
     reader.readAsArrayBuffer(file);
   };
 
@@ -217,7 +380,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: googleScriptUrl,
-          spreadsheetId: spreadsheetId,
+          spreadsheetId: spreadsheetId || configActual?.spreadsheetId,
           action: 'actualizarBase',
           data: previewData
         })
@@ -227,8 +390,12 @@ const AdminPanel = () => {
 
       if (result.success) {
         setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.`);
-        setPreviewData([]);
-        setTimeout(() => cargarConfiguracion(), 1500);
+        
+        // 🔥 LIMPIAR DATOS DESPUÉS DE SUBIR
+        setTimeout(() => {
+          limpiarDatosCompletamente();
+          cargarConfiguracion();
+        }, 2000);
       } else {
         throw new Error(result.error || 'Error al actualizar');
       }
@@ -606,7 +773,7 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* PASO 3 */}
+          {/* 🔥🔥🔥 PASO 3 - MODIFICADO 🔥🔥🔥 */}
           {pasoActual === 3 && (
             <div>
               <h2 style={{ color: '#5a2290', marginBottom: '10px' }}>👥 Cargar estudiantes</h2>
@@ -631,6 +798,38 @@ const AdminPanel = () => {
                 </div>
               )}
 
+              {/* 🔥 BOTÓN PARA LIMPIAR DATOS */}
+              <div style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={limpiarDatosCompletamente}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '14px'
+                  }}
+                >
+                  🗑️ Limpiar datos cargados
+                </button>
+                {nombreArchivo && (
+                  <span style={{ 
+                    padding: '10px 20px',
+                    background: '#e8f5e1',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    color: '#1a5e20',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    📄 {nombreArchivo}
+                  </span>
+                )}
+              </div>
+
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>📂 Archivo Excel</label>
                 <div style={{ 
@@ -642,11 +841,16 @@ const AdminPanel = () => {
                   transition: 'all 0.3s ease'
                 }}>
                   <input
+                    ref={fileInputRef}  // 🔥 REFERENCIA
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) procesarExcel(file);
+                      if (file) {
+                        // 🔥 LIMPIAR ANTES DE PROCESAR
+                        limpiarDatosCompletamente();
+                        procesarExcel(file);
+                      }
                     }}
                     style={{ display: 'none' }}
                     id="file-upload"
@@ -704,8 +908,8 @@ const AdminPanel = () => {
                           <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
                             <td style={{ padding: '8px' }}>{item.correo?.substring(0, 30)}</td>
                             <td style={{ padding: '8px' }}>{item.nombre?.substring(0, 30)}</td>
-                            <td style={{ padding: '8px' }}>{item.curso}</td>
-                            <td style={{ padding: '8px' }}>{item.seccion}</td>
+                            <td style={{ padding: '8px' }}>{item.curso || 'N/D'}</td>
+                            <td style={{ padding: '8px' }}>{item.seccion || 'N/D'}</td>
                           </tr>
                         ))}
                       </tbody>
