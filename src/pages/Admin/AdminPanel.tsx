@@ -161,204 +161,194 @@ const AdminPanel = () => {
     }
   };
 
-  // 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - CORREGIDA 🔥🔥🔥
-// 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - CORREGIDA 🔥🔥🔥
-const procesarExcel = (file: File) => {
-  limpiarDatosCompletamente();
-  
-  if (!file || file.size === 0) {
-    setMensaje('❌ El archivo está vacío');
-    return;
-  }
-
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
-    setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
-    return;
-  }
-
-  setNombreArchivo(file.name);
-  setMensaje(`🔄 Procesando "${file.name}"...`);
-
-  const reader = new FileReader();
-  
-  reader.onload = (e) => {
-    try {
-      const fileData = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(fileData, { 
-        type: 'array',
-        cellDates: false,
-        cellText: false,
-        cellNF: false,
-        sheetStubs: false,
-        bookVBA: false,
-        bookSheets: true,
-        bookProps: false,
-        bookFiles: false,
-      });
-      
-      console.log('📚 Hojas encontradas:', workbook.SheetNames);
-      
-      // Verificar que haya hojas
-      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-        setMensaje('❌ El archivo no contiene hojas');
-        setPreviewData([]);
-        return;
-      }
-      
-      // 🔥🔥🔥 BUSCAR CUALQUIER HOJA QUE CONTENGA "data" (data, data1, Data, DATA, etc.)
-      let sheetName = workbook.SheetNames.find(name => 
-        name.toLowerCase().includes('data')
-      );
-      
-      // Si no encuentra ninguna hoja con "data", usa la PRIMERA hoja
-      if (!sheetName) {
-        sheetName = workbook.SheetNames[0];
-        setMensaje(`⚠️ No se encontró hoja con "data", usando la primera: "${sheetName}"`);
-      } else {
-        setMensaje(`✅ Usando hoja: "${sheetName}"`);
-      }
-      
-      // Obtener la hoja por su nombre
-      const hojaData = workbook.Sheets[sheetName];
-      
-      // Verificar que la hoja exista y tenga datos
-      if (!hojaData) {
-        setMensaje(`❌ La hoja "${sheetName}" no existe o está vacía`);
-        setPreviewData([]);
-        return;
-      }
-      
-      // Convertir a JSON
-      const jsonData = XLSX.utils.sheet_to_json(hojaData, {
-        defval: '',
-        blankrows: false,
-        raw: true,
-        rawNumbers: true,
-      });
-      
-      console.log(`📄 Total de filas en el archivo: ${jsonData.length}`);
-      
-      if (jsonData.length === 0) {
-        setMensaje('❌ El archivo está vacío o no tiene datos válidos');
-        setPreviewData([]);
-        return;
-      }
-
-      console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
-      console.log('🔍 Primeras 3 filas:', jsonData.slice(0, 3));
-
-      // 🔥 MAPEAR DATOS - EMaiCrec es el PRIMERO
-      const estudiantes = jsonData
-        .map((row: any) => {
-          const correo = 
-            row['EMaiCrec']?.trim() ||   // ✅ PRIMERO
-            row['Correo']?.trim() || 
-            row['Email']?.trim() || 
-            row['email']?.trim() || 
-            row['E-mail']?.trim() || 
-            row['CORREO']?.trim() || 
-            row['EMail1']?.trim() ||     // ✅ ÚLTIMO
-            row['EMail2']?.trim() || 
-            '';
-          
-          const nombre = 
-            `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || 
-            row['Nombre']?.trim() || 
-            row['nombre']?.trim() || 
-            row['Nombres']?.trim() || 
-            row['NOMBRE']?.trim() || 
-            '';
-          
-          const curso = 
-            row['Curso']?.trim() || 
-            row['curso']?.trim() || 
-            row['CURSO']?.trim() || 
-            '';
-          
-          const seccion = 
-            row['Seccion']?.trim() || 
-            row['Sección']?.trim() || 
-            row['PEAD']?.trim() || 
-            row['seccion']?.trim() || 
-            row['SECCION']?.trim() || 
-            '';
-          
-          const docente = 
-            row['Docente']?.trim() || 
-            row['docente']?.trim() || 
-            row['DOCENTE']?.trim() || 
-            '';
-          
-          const planEstudio = 
-            row['PlanEst']?.trim() || 
-            row['PlanEstudio']?.trim() || 
-            row['PLAN_ESTUDIO']?.trim() || 
-            '';
-          
-          return {
-            correo,
-            nombre,
-            planEstudio,
-            curso,
-            seccion,
-            docente
-          };
-        })
-        .filter(est => {
-          const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
-          const tieneNombre = est.nombre && est.nombre.length > 0;
-          return tieneCorreo && tieneNombre;
-        });
-
-      console.log(`✅ Registros válidos: ${estudiantes.length}`);
-
-      if (estudiantes.length === 0) {
-        setMensaje(`❌ No se encontraron registros válidos. Columnas esperadas: EMaiCrec, Apellido, Nombre. Columnas encontradas: ${Object.keys(jsonData[0] || {}).join(', ')}`);
-        setPreviewData([]);
-        return;
-      }
-
-      // Eliminar duplicados por correo
-      const uniqueEstudiantes = [];
-      const emailsVistos = new Set();
-      let duplicados = 0;
-      
-      for (const est of estudiantes) {
-        const emailLower = est.correo.toLowerCase();
-        if (!emailsVistos.has(emailLower)) {
-          emailsVistos.add(emailLower);
-          uniqueEstudiantes.push(est);
-        } else {
-          duplicados++;
-        }
-      }
-      
-      if (duplicados > 0) {
-        console.log(`⚠️ ${duplicados} correos duplicados eliminados`);
-      }
-
-      setPreviewData(uniqueEstudiantes);
-      setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
-      
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Error procesando Excel:', error);
-      setMensaje(`❌ Error al procesar: ${error.message}`);
-      setPreviewData([]);
+  // 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - VERSIÓN DEFINITIVA 🔥🔥🔥
+  const procesarExcel = (file: File) => {
+    limpiarDatosCompletamente();
+    
+    if (!file || file.size === 0) {
+      setMensaje('❌ El archivo está vacío');
+      return;
     }
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
+      setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
+      return;
+    }
+
+    setNombreArchivo(file.name);
+    setMensaje(`🔄 Procesando "${file.name}"...`);
+
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const fileData = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(fileData, { 
+          type: 'array',
+          cellDates: false,
+          cellText: false,
+          cellNF: false,
+          sheetStubs: false,
+          bookVBA: false,
+          bookSheets: true,
+          bookProps: false,
+          bookFiles: false,
+        });
+        
+        console.log('📚 Hojas encontradas:', workbook.SheetNames);
+        
+        // Verificar que haya hojas
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          setMensaje('❌ El archivo no contiene hojas');
+          setPreviewData([]);
+          return;
+        }
+        
+        // 🔥🔥🔥 USAR LA PRIMERA HOJA POR ÍNDICE (SIEMPRE FUNCIONA) 🔥🔥🔥
+        const sheetIndex = 0;
+        const sheetName = workbook.SheetNames[sheetIndex];
+        const hojaData = workbook.Sheets[sheetName];
+        
+        console.log(`✅ Usando hoja: "${sheetName}" (índice ${sheetIndex})`);
+        
+        // Verificar que la hoja exista
+        if (!hojaData) {
+          setMensaje(`❌ La hoja "${sheetName}" no existe o está vacía`);
+          setPreviewData([]);
+          return;
+        }
+        
+        // Convertir a JSON
+        const jsonData = XLSX.utils.sheet_to_json(hojaData, {
+          defval: '',
+          blankrows: false,
+          raw: true,
+          rawNumbers: true,
+        });
+        
+        console.log(`📄 Total de filas en el archivo: ${jsonData.length}`);
+        
+        if (jsonData.length === 0) {
+          setMensaje('❌ El archivo está vacío o no tiene datos válidos');
+          setPreviewData([]);
+          return;
+        }
+
+        console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
+        console.log('🔍 Primeras 3 filas:', jsonData.slice(0, 3));
+
+        // 🔥 MAPEAR DATOS - EMaiCrec es el PRIMERO
+        const estudiantes = jsonData
+          .map((row: any) => {
+            const correo = 
+              row['EMaiCrec']?.trim() ||   // ✅ PRIMERO
+              row['Correo']?.trim() || 
+              row['Email']?.trim() || 
+              row['email']?.trim() || 
+              row['E-mail']?.trim() || 
+              row['CORREO']?.trim() || 
+              row['EMail1']?.trim() ||     // ✅ ÚLTIMO
+              row['EMail2']?.trim() || 
+              '';
+            
+            const nombre = 
+              `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || 
+              row['Nombre']?.trim() || 
+              row['nombre']?.trim() || 
+              row['Nombres']?.trim() || 
+              row['NOMBRE']?.trim() || 
+              '';
+            
+            const curso = 
+              row['Curso']?.trim() || 
+              row['curso']?.trim() || 
+              row['CURSO']?.trim() || 
+              '';
+            
+            const seccion = 
+              row['Seccion']?.trim() || 
+              row['Sección']?.trim() || 
+              row['PEAD']?.trim() || 
+              row['seccion']?.trim() || 
+              row['SECCION']?.trim() || 
+              '';
+            
+            const docente = 
+              row['Docente']?.trim() || 
+              row['docente']?.trim() || 
+              row['DOCENTE']?.trim() || 
+              '';
+            
+            const planEstudio = 
+              row['PlanEst']?.trim() || 
+              row['PlanEstudio']?.trim() || 
+              row['PLAN_ESTUDIO']?.trim() || 
+              '';
+            
+            return {
+              correo,
+              nombre,
+              planEstudio,
+              curso,
+              seccion,
+              docente
+            };
+          })
+          .filter(est => {
+            const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
+            const tieneNombre = est.nombre && est.nombre.length > 0;
+            return tieneCorreo && tieneNombre;
+          });
+
+        console.log(`✅ Registros válidos: ${estudiantes.length}`);
+
+        if (estudiantes.length === 0) {
+          setMensaje(`❌ No se encontraron registros válidos. Columnas esperadas: EMaiCrec, Apellido, Nombre. Columnas encontradas: ${Object.keys(jsonData[0] || {}).join(', ')}`);
+          setPreviewData([]);
+          return;
+        }
+
+        // Eliminar duplicados por correo
+        const uniqueEstudiantes = [];
+        const emailsVistos = new Set();
+        let duplicados = 0;
+        
+        for (const est of estudiantes) {
+          const emailLower = est.correo.toLowerCase();
+          if (!emailsVistos.has(emailLower)) {
+            emailsVistos.add(emailLower);
+            uniqueEstudiantes.push(est);
+          } else {
+            duplicados++;
+          }
+        }
+        
+        if (duplicados > 0) {
+          console.log(`⚠️ ${duplicados} correos duplicados eliminados`);
+        }
+
+        setPreviewData(uniqueEstudiantes);
+        setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
+        
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+      } catch (error: any) {
+        console.error('❌ Error procesando Excel:', error);
+        setMensaje(`❌ Error al procesar: ${error.message}`);
+        setPreviewData([]);
+      }
+    };
+    
+    reader.onerror = () => {
+      setMensaje('❌ Error al leer el archivo');
+      setPreviewData([]);
+    };
+    
+    reader.readAsArrayBuffer(file);
   };
-  
-  reader.onerror = () => {
-    setMensaje('❌ Error al leer el archivo');
-    setPreviewData([]);
-  };
-  
-  reader.readAsArrayBuffer(file);
-};
 
   const actualizarBaseUnificada = async () => {
     if (!googleScriptUrl) {
@@ -866,7 +856,7 @@ const procesarExcel = (file: File) => {
                   </label>
                 </div>
                 <small style={{ color: '#666', display: 'block', marginTop: '8px' }}>
-                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, etc.
+                  ⚠️ El Excel debe tener columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, etc.
                 </small>
               </div>
 
