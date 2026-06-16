@@ -144,16 +144,20 @@ const AdminPanel = () => {
   };
 
   const procesarExcel = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      let sheetName = 'data';
-      if (!workbook.SheetNames.includes(sheetName)) {
-        sheetName = workbook.SheetNames[0];
-        setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
-      }
+  // 🔥 LIMPIAR DATOS VIEJOS ANTES DE PROCESAR
+  setPreviewData([]);
+  setMensaje('');
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const data = new Uint8Array(e.target?.result as ArrayBuffer);
+    const workbook = XLSX.read(data, { type: 'array' });
+    
+    let sheetName = 'data';
+    if (!workbook.SheetNames.includes(sheetName)) {
+      sheetName = workbook.SheetNames[0];
+      setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
+    }
       
       const hojaData = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(hojaData);
