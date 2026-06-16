@@ -1,5 +1,5 @@
 // src/pages/Admin/AdminPanel.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../../firebase/config';
 import { ref, set, get } from 'firebase/database';
 import * as XLSX from 'xlsx';
@@ -17,10 +17,6 @@ const AdminPanel = () => {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
-  const [nombreArchivo, setNombreArchivo] = useState('');
-
-  // 🔥 REFERENCIA AL INPUT FILE
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cerrarSesion = () => {
     localStorage.removeItem('isAdmin');
@@ -31,7 +27,6 @@ const AdminPanel = () => {
 
   useEffect(() => {
     cargarConfiguracion();
-    limpiarDatosCompletamente();
   }, []);
 
   const cargarConfiguracion = async () => {
@@ -57,19 +52,6 @@ const AdminPanel = () => {
     } catch (error) {
       console.error('Error cargando:', error);
     }
-  };
-
-  // 🔥 FUNCIÓN PARA LIMPIAR DATOS COMPLETAMENTE
-  const limpiarDatosCompletamente = () => {
-    setPreviewData([]);
-    setMensaje('');
-    setNombreArchivo('');
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    
-    console.log('🧹 Datos limpiados completamente');
   };
 
   const guardarConfiguracion = async () => {
@@ -161,192 +143,50 @@ const AdminPanel = () => {
     }
   };
 
-  // 🔥🔥🔥 FUNCIÓN PARA PROCESAR EXCEL - VERSIÓN DEFINITIVA 🔥🔥🔥
   const procesarExcel = (file: File) => {
-    limpiarDatosCompletamente();
-    
-    if (!file || file.size === 0) {
-      setMensaje('❌ El archivo está vacío');
-      return;
-    }
-
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
-      setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
-      return;
-    }
-
-    setNombreArchivo(file.name);
-    setMensaje(`🔄 Procesando "${file.name}"...`);
-
     const reader = new FileReader();
-    
     reader.onload = (e) => {
-      try {
-        const fileData = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(fileData, { 
-          type: 'array',
-          cellDates: false,
-          cellText: false,
-          cellNF: false,
-          sheetStubs: false,
-          bookVBA: false,
-          bookSheets: true,
-          bookProps: false,
-          bookFiles: false,
-        });
-        
-        console.log('📚 Hojas encontradas:', workbook.SheetNames);
-        
-        // Verificar que haya hojas
-        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-          setMensaje('❌ El archivo no contiene hojas');
-          setPreviewData([]);
-          return;
-        }
-        
-        // 🔥🔥🔥 USAR LA PRIMERA HOJA POR ÍNDICE (SIEMPRE FUNCIONA) 🔥🔥🔥
-        const sheetIndex = 0;
-        const sheetName = workbook.SheetNames[sheetIndex];
-        const hojaData = workbook.Sheets[sheetName];
-        
-        console.log(`✅ Usando hoja: "${sheetName}" (índice ${sheetIndex})`);
-        
-        // Verificar que la hoja exista
-        if (!hojaData) {
-          setMensaje(`❌ La hoja "${sheetName}" no existe o está vacía`);
-          setPreviewData([]);
-          return;
-        }
-        
-        // Convertir a JSON
-        const jsonData = XLSX.utils.sheet_to_json(hojaData, {
-          defval: '',
-          blankrows: false,
-          raw: true,
-          rawNumbers: true,
-        });
-        
-        console.log(`📄 Total de filas en el archivo: ${jsonData.length}`);
-        
-        if (jsonData.length === 0) {
-          setMensaje('❌ El archivo está vacío o no tiene datos válidos');
-          setPreviewData([]);
-          return;
-        }
-
-        console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
-        console.log('🔍 Primeras 3 filas:', jsonData.slice(0, 3));
-
-        // 🔥 MAPEAR DATOS - EMaiCrec es el PRIMERO
-        const estudiantes = jsonData
-          .map((row: any) => {
-            const correo = 
-              row['EMaiCrec']?.trim() ||   // ✅ PRIMERO
-              row['Correo']?.trim() || 
-              row['Email']?.trim() || 
-              row['email']?.trim() || 
-              row['E-mail']?.trim() || 
-              row['CORREO']?.trim() || 
-              row['EMail1']?.trim() ||     // ✅ ÚLTIMO
-              row['EMail2']?.trim() || 
-              '';
-            
-            const nombre = 
-              `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || 
-              row['Nombre']?.trim() || 
-              row['nombre']?.trim() || 
-              row['Nombres']?.trim() || 
-              row['NOMBRE']?.trim() || 
-              '';
-            
-            const curso = 
-              row['Curso']?.trim() || 
-              row['curso']?.trim() || 
-              row['CURSO']?.trim() || 
-              '';
-            
-            const seccion = 
-              row['Seccion']?.trim() || 
-              row['Sección']?.trim() || 
-              row['PEAD']?.trim() || 
-              row['seccion']?.trim() || 
-              row['SECCION']?.trim() || 
-              '';
-            
-            const docente = 
-              row['Docente']?.trim() || 
-              row['docente']?.trim() || 
-              row['DOCENTE']?.trim() || 
-              '';
-            
-            const planEstudio = 
-              row['PlanEst']?.trim() || 
-              row['PlanEstudio']?.trim() || 
-              row['PLAN_ESTUDIO']?.trim() || 
-              '';
-            
-            return {
-              correo,
-              nombre,
-              planEstudio,
-              curso,
-              seccion,
-              docente
-            };
-          })
-          .filter(est => {
-            const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
-            const tieneNombre = est.nombre && est.nombre.length > 0;
-            return tieneCorreo && tieneNombre;
-          });
-
-        console.log(`✅ Registros válidos: ${estudiantes.length}`);
-
-        if (estudiantes.length === 0) {
-          setMensaje(`❌ No se encontraron registros válidos. Columnas esperadas: EMaiCrec, Apellido, Nombre. Columnas encontradas: ${Object.keys(jsonData[0] || {}).join(', ')}`);
-          setPreviewData([]);
-          return;
-        }
-
-        // Eliminar duplicados por correo
-        const uniqueEstudiantes = [];
-        const emailsVistos = new Set();
-        let duplicados = 0;
-        
-        for (const est of estudiantes) {
-          const emailLower = est.correo.toLowerCase();
-          if (!emailsVistos.has(emailLower)) {
-            emailsVistos.add(emailLower);
-            uniqueEstudiantes.push(est);
-          } else {
-            duplicados++;
-          }
-        }
-        
-        if (duplicados > 0) {
-          console.log(`⚠️ ${duplicados} correos duplicados eliminados`);
-        }
-
-        setPreviewData(uniqueEstudiantes);
-        setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
-        
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        
-      } catch (error: any) {
-        console.error('❌ Error procesando Excel:', error);
-        setMensaje(`❌ Error al procesar: ${error.message}`);
-        setPreviewData([]);
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      let sheetName = 'data';
+      if (!workbook.SheetNames.includes(sheetName)) {
+        sheetName = workbook.SheetNames[0];
+        setMensaje(`⚠️ No se encontró hoja "data", usando "${sheetName}"`);
       }
+      
+      const hojaData = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(hojaData);
+      
+      const estudiantes = jsonData
+        .map((row: any) => ({
+          correo: row['EMail1'] || row['EMail2'] || row['EMaiCrec'] || row['Correo'] || '',
+          nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
+          planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
+          curso: row['Curso'] || '',
+          seccion: row['Seccion'] || row['PEAD'] || '',
+          docente: row['Docente'] || ''
+        }))
+        .filter(est => {
+          const tieneCorreo = est.correo && est.correo.includes('@');
+          const tieneNombre = est.nombre && est.nombre.length > 0;
+          const tieneCurso = est.curso && est.curso.length > 0;
+          return tieneCorreo && tieneNombre && tieneCurso;
+        });
+      
+      const uniqueEstudiantes = [];
+      const emailsVistos = new Set();
+      
+      for (const est of estudiantes) {
+        if (!emailsVistos.has(est.correo)) {
+          emailsVistos.add(est.correo);
+          uniqueEstudiantes.push(est);
+        }
+      }
+      
+      setPreviewData(uniqueEstudiantes);
+      setMensaje(`📊 Hoja "${sheetName}": ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} totales)`);
     };
-    
-    reader.onerror = () => {
-      setMensaje('❌ Error al leer el archivo');
-      setPreviewData([]);
-    };
-    
     reader.readAsArrayBuffer(file);
   };
 
@@ -377,7 +217,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptUrl: googleScriptUrl,
-          spreadsheetId: spreadsheetId || configActual?.spreadsheetId,
+          spreadsheetId: spreadsheetId,
           action: 'actualizarBase',
           data: previewData
         })
@@ -387,11 +227,8 @@ const AdminPanel = () => {
 
       if (result.success) {
         setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.`);
-        
-        setTimeout(() => {
-          limpiarDatosCompletamente();
-          cargarConfiguracion();
-        }, 2000);
+        setPreviewData([]);
+        setTimeout(() => cargarConfiguracion(), 1500);
       } else {
         throw new Error(result.error || 'Error al actualizar');
       }
@@ -794,37 +631,6 @@ const AdminPanel = () => {
                 </div>
               )}
 
-              <div style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={limpiarDatosCompletamente}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    fontSize: '14px'
-                  }}
-                >
-                  🗑️ Limpiar datos cargados
-                </button>
-                {nombreArchivo && (
-                  <span style={{ 
-                    padding: '10px 20px',
-                    background: '#e8f5e1',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    color: '#1a5e20',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}>
-                    📄 {nombreArchivo}
-                  </span>
-                )}
-              </div>
-
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>📂 Archivo Excel</label>
                 <div style={{ 
@@ -836,15 +642,11 @@ const AdminPanel = () => {
                   transition: 'all 0.3s ease'
                 }}>
                   <input
-                    ref={fileInputRef}
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        limpiarDatosCompletamente();
-                        procesarExcel(file);
-                      }
+                      if (file) procesarExcel(file);
                     }}
                     style={{ display: 'none' }}
                     id="file-upload"
@@ -856,7 +658,7 @@ const AdminPanel = () => {
                   </label>
                 </div>
                 <small style={{ color: '#666', display: 'block', marginTop: '8px' }}>
-                  ⚠️ El Excel debe tener columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, etc.
+                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: EMail1, Apellido, Nombre, Curso, etc.
                 </small>
               </div>
 
@@ -891,7 +693,7 @@ const AdminPanel = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead style={{ position: 'sticky', top: 0 }}>
                         <tr style={{ background: '#5a2290', color: 'white' }}>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo (EMaiCrec)</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Nombre</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Curso</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Sección</th>
@@ -902,8 +704,8 @@ const AdminPanel = () => {
                           <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
                             <td style={{ padding: '8px' }}>{item.correo?.substring(0, 30)}</td>
                             <td style={{ padding: '8px' }}>{item.nombre?.substring(0, 30)}</td>
-                            <td style={{ padding: '8px' }}>{item.curso || 'N/D'}</td>
-                            <td style={{ padding: '8px' }}>{item.seccion || 'N/D'}</td>
+                            <td style={{ padding: '8px' }}>{item.curso}</td>
+                            <td style={{ padding: '8px' }}>{item.seccion}</td>
                           </tr>
                         ))}
                       </tbody>
