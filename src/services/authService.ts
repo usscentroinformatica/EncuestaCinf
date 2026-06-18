@@ -1,3 +1,5 @@
+// src/services/authService.ts
+
 import { db } from '../firebase/config';
 import { ref, get } from 'firebase/database';
 
@@ -9,7 +11,6 @@ export const esAdmin = async (email: string): Promise<boolean> => {
     
     if (snapshot.exists()) {
       const admins = snapshot.val();
-      // Buscar si el email existe como valor en el objeto admins
       for (const key in admins) {
         if (admins[key] === email.toLowerCase()) {
           console.log('✅ Admin encontrado:', email);
@@ -42,7 +43,7 @@ export const getGoogleScriptUrl = async (): Promise<string> => {
   }
 };
 
-// 🔴 NUEVA FUNCIÓN: Obtener configuración completa (URL + spreadsheetId)
+// Obtener configuración completa (URL + spreadsheetId)
 export const getConfigCompleta = async (): Promise<{ scriptUrl: string; spreadsheetId: string }> => {
   try {
     const configRef = ref(db, 'encuesta-config/config');
@@ -64,5 +65,22 @@ export const getConfigCompleta = async (): Promise<{ scriptUrl: string; spreadsh
   } catch (error) {
     console.error('Error cargando config completa:', error);
     return { scriptUrl: "", spreadsheetId: "" };
+  }
+};
+
+// 🆕 NUEVA FUNCIÓN: Obtener solo el período
+export const getPeriodoActual = async (): Promise<string> => {
+  try {
+    const configRef = ref(db, 'encuesta-config/config');
+    const snapshot = await get(configRef);
+    
+    if (snapshot.exists()) {
+      const config = snapshot.val();
+      return config.periodo || "PERIODO NO CONFIGURADO";
+    }
+    return "PERIODO NO CONFIGURADO";
+  } catch (error) {
+    console.error('Error cargando período:', error);
+    return "PERIODO NO CONFIGURADO";
   }
 };
