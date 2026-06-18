@@ -1,5 +1,3 @@
-// src/services/authService.ts
-
 import { db } from '../firebase/config';
 import { ref, get } from 'firebase/database';
 
@@ -11,6 +9,7 @@ export const esAdmin = async (email: string): Promise<boolean> => {
     
     if (snapshot.exists()) {
       const admins = snapshot.val();
+      // Buscar si el email existe como valor en el objeto admins
       for (const key in admins) {
         if (admins[key] === email.toLowerCase()) {
           console.log('✅ Admin encontrado:', email);
@@ -68,7 +67,7 @@ export const getConfigCompleta = async (): Promise<{ scriptUrl: string; spreadsh
   }
 };
 
-// 🆕 NUEVA FUNCIÓN: Obtener solo el período
+// Obtener el período actual desde Firebase
 export const getPeriodoActual = async (): Promise<string> => {
   try {
     const configRef = ref(db, 'encuesta-config/config');
