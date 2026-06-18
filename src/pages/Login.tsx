@@ -1,8 +1,6 @@
-// src/pages/Login.tsx
-
-import { useState, useEffect } from 'react' // 🔥 AÑADIR useEffect
+import { useState, useEffect } from 'react'
 import logoUss from '../assets/uss.png'
-import { esAdmin, getConfigCompleta, getPeriodoActual } from '../services/authService' // 🔥 IMPORTAR getPeriodoActual
+import { esAdmin, getConfigCompleta, getPeriodoActual } from '../services/authService'
 
 interface Curso {
   nombre: string;
@@ -18,9 +16,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [dominioEncontrado, setDominioEncontrado] = useState('')
-  const [periodoActual, setPeriodoActual] = useState('Cargando...') // 🆕 Estado para el período
+  const [periodoActual, setPeriodoActual] = useState('Cargando...')
 
-  // 🆕 CARGAR EL PERÍODO AL INICIAR
+  // Cargar el período desde Firebase al iniciar
   useEffect(() => {
     const cargarPeriodo = async () => {
       try {
@@ -32,9 +30,8 @@ export default function Login() {
         setPeriodoActual('PERIODO NO CONFIGURADO');
       }
     };
-    
     cargarPeriodo();
-  }, []); // Solo se ejecuta una vez
+  }, []);
 
   const ingresar = async () => {
     if (!nombreUsuario.trim()) {
@@ -49,6 +46,7 @@ export default function Login() {
     try {
       const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
       
+      // Lista de dominios a probar
       const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
       
       let emailEncontrado = ''
@@ -66,7 +64,7 @@ export default function Login() {
         console.warn('⚠️ No hay spreadsheetId configurado.')
       }
       
-      // Verificar ADMINISTRADOR
+      // PRIMERO: Verificar si es ADMINISTRADOR (solo con @uss.edu.pe)
       const emailAdmin = `${nombreUsuarioLimpio}@uss.edu.pe`
       const esAdministrador = await esAdmin(emailAdmin)
       
@@ -79,7 +77,7 @@ export default function Login() {
         return
       }
       
-      // Buscar ESTUDIANTE
+      // SEGUNDO: Buscar como ESTUDIANTE en la base de datos
       for (const dominio of dominios) {
         const emailProbar = `${nombreUsuarioLimpio}${dominio}`
         
@@ -107,12 +105,14 @@ export default function Login() {
         }
       }
       
+      // Si no se encontró al estudiante
       if (!emailEncontrado || !datosEstudiante) {
         setError(`❌ Usuario "${nombreUsuarioLimpio}" no encontrado. Verifica que esté registrado en la base de datos.`)
         setLoading(false)
         return
       }
       
+      // Es estudiante normal
       const pendientes = datosEstudiante.cursos.filter((curso: Curso) => !curso.completado)
       
       if (pendientes.length === 0) {
@@ -121,6 +121,7 @@ export default function Login() {
         return
       }
       
+      // Guardar el email REAL que está en la base de datos
       const datosAGuardar = {
         email: emailEncontrado,
         cursos: datosEstudiante.cursos,
@@ -219,7 +220,6 @@ export default function Login() {
               fontSize: '16px',
               fontWeight: '500'
             }}>
-              {/* 🔥 AQUÍ SE MUESTRA EL PERÍODO DINÁMICO */}
               {periodoActual}
             </div>
             <div style={{
@@ -231,7 +231,6 @@ export default function Login() {
             </div>
           </div>
 
-          {/* EL RESTO DEL CÓDIGO JSX IGUAL... */}
           <div style={{ padding: '32px 48px' }}>
             <div style={{
               border: '1px solid #dadce0',
