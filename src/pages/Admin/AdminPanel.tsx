@@ -191,11 +191,12 @@ const AdminPanel = () => {
       const jsonData = XLSX.utils.sheet_to_json(hojaData);
       
       console.log('📄 Total de filas:', jsonData.length);
-      console.log('📋 Columnas encontradas:', Object.keys(jsonData[0] || {}));
       
-      // 🔥 VERIFICAR QUE EMaiCrec EXISTA
-      if (jsonData.length > 0) {
-        const columnas = Object.keys(jsonData[0]);
+      // 🔥 VERIFICAR QUE EMaiCrec EXISTA - CORREGIDO
+      if (jsonData.length > 0 && jsonData[0]) {
+        const columnas = Object.keys(jsonData[0] as Record<string, any>);
+        console.log('📋 Columnas encontradas:', columnas);
+        
         if (columnas.includes('EMaiCrec')) {
           console.log('✅ EMaiCrec ENCONTRADO en el archivo');
         } else {
