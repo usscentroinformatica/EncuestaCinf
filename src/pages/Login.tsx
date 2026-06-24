@@ -61,7 +61,9 @@ export default function Login() {
       }
       
       if (!config.spreadsheetId) {
-        console.warn('⚠️ No hay spreadsheetId configurado.')
+        setError('⚠️ La hoja de cálculo no está configurada. Contacta al administrador.')
+        setLoading(false)
+        return
       }
       
       // PRIMERO: Verificar si es ADMINISTRADOR (solo con @uss.edu.pe)
@@ -218,10 +220,21 @@ export default function Login() {
             <div style={{
               marginTop: '12px',
               fontSize: '16px',
-              fontWeight: '500'
+              fontWeight: '500',
+              color: periodoActual === 'PERIODO NO CONFIGURADO' ? '#ff6b6b' : 'white'
             }}>
               {periodoActual}
             </div>
+            {periodoActual === 'PERIODO NO CONFIGURADO' && (
+              <div style={{
+                marginTop: '8px',
+                fontSize: '12px',
+                color: '#ffd93d',
+                fontWeight: '400'
+              }}>
+                ⚠️ Contacta al administrador para configurar el período
+              </div>
+            )}
             <div style={{
               marginTop: '8px',
               fontSize: '14px',
