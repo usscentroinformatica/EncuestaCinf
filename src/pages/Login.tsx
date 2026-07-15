@@ -45,11 +45,6 @@ export default function Login() {
     try {
       const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
       
-      const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
-      
-      let emailEncontrado = ''
-      let datosEstudiante = null
-      
       const config = await getConfigCompleta()
       
       if (!config.scriptUrl) {
@@ -57,14 +52,6 @@ export default function Login() {
         setLoading(false)
         return
       }
-      
-      // 🔧 MODIFICACIÓN TEMPORAL: Comentamos la verificación del spreadsheetId
-      console.log('🔧 MODO TEMPORAL: Verificación de spreadsheetId desactivada')
-      // if (!config.spreadsheetId) {
-      //   setError('⚠️ La hoja de cálculo no está configurada. Contacta al administrador.')
-      //   setLoading(false)
-      //   return
-      // }
       
       // PRIMERO: Verificar si es ADMINISTRADOR
       const emailAdmin = `${nombreUsuarioLimpio}@uss.edu.pe`
@@ -79,67 +66,73 @@ export default function Login() {
         return
       }
       
-      // SEGUNDO: Buscar como ESTUDIANTE
-      // Si no hay spreadsheetId, mostramos error solo para estudiantes
+      // SEGUNDO: Verificar que existe spreadsheetId para estudiantes
       if (!config.spreadsheetId) {
-        setError('⚠️ La hoja de cálculo no está configurada. El administrador debe configurarla.')
+        setError('⚠️ La hoja de cálculo no está configurada. Contacta al administrador.')
         setLoading(false)
         return
       }
       
-      for (const dominio of dominios) {
-        const emailProbar = `${nombreUsuarioLimpio}${dominio}`
+      // TERCERO: Buscar como ESTUDIANTE usando el PROXY
+      console.log('🔍 Buscando estudiante:', nombreUsuarioLimpio)
+      
+      // ✅ USAR EL PROXY EN VEZ DE LLAMAR DIRECTAMENTE A GOOGLE
+      const response = await fetch('/api/google-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          scriptUrl: config.scriptUrl,
+          spreadsheetId: config.spreadsheetId,
+          action: 'verificarEstudiante',
+          usuario: nombreUsuarioLimpio
+        })
+      })
+
+      const data = await response.json()
+      console.log('📥 Respuesta del proxy:', data)
+
+      // ✅ VERIFICAR LA RESPUESTA CORRECTA (usando exito, no success)
+      if (data.exito === true && data.estudiante) {
+        const estudiante = data.estudiante
         
-        console.log(`🔍 Probando con: ${emailProbar}`)
-        
-        const url = `${config.scriptUrl}?email=${encodeURIComponent(emailProbar)}&spreadsheetId=${config.spreadsheetId}`
-        
-        try {
-          const response = await fetch(url)
-          const data = await response.json()
-          
-          if (data.success && data.cursos && data.cursos.length > 0) {
-            const emailReal = data.emailReal || data.email || emailProbar
-            
-            emailEncontrado = emailReal
-            datosEstudiante = data
-            setDominioEncontrado(dominio)
-            console.log(`✅ Estudiante encontrado con email REAL de BD: ${emailEncontrado}`)
-            break
-          } else if (data.error) {
-            console.log(`❌ No encontrado con ${emailProbar}: ${data.error}`)
-          }
-        } catch (error) {
-          console.log(`❌ Error probando ${emailProbar}:`, error)
+        // Verificar si ya completó la encuesta
+        if (estudiante.estado === 'Respondido') {
+          setError('🎉 Ya has completado esta encuesta. ¡Gracias!')
+          setLoading(false)
+          return
         }
-      }
-      
-      if (!emailEncontrado || !datosEstudiante) {
-        setError(`❌ Usuario "${nombreUsuarioLimpio}" no encontrado. Verifica que esté registrado en la base de datos.`)
+        
+        // Guardar datos del estudiante
+        const cursos = [{
+          nombre: estudiante.nombre || 'Estudiante',
+          curso: estudiante.curso || '',
+          pead: estudiante.pead || '',
+          docente: estudiante.docente || '',
+          completado: estudiante.estado === 'Respondido',
+          planEstudio: estudiante.planEstudio || ''
+        }]
+        
+        const datosAGuardar = {
+          email: estudiante.correo,
+          cursos: cursos,
+          spreadsheetId: config.spreadsheetId,
+          dominioUsado: '@uss.edu.pe'
+        }
+        
+        localStorage.setItem('eval_data', JSON.stringify(datosAGuardar))
+        console.log('💾 Datos guardados:', datosAGuardar)
+        
+        window.location.href = '/formulario'
+        
+      } else {
+        // No encontrado o error
+        const mensaje = data.mensaje || 'Usuario no encontrado. Verifica que estés registrado.'
+        setError(`❌ ${mensaje}`)
         setLoading(false)
         return
       }
-      
-      const pendientes = datosEstudiante.cursos.filter((curso: Curso) => !curso.completado)
-      
-      if (pendientes.length === 0) {
-        setError('🎉 ¡Felicidades! Ya has respondido todas las encuestas.')
-        setLoading(false)
-        return
-      }
-      
-      const datosAGuardar = {
-        email: emailEncontrado,
-        cursos: datosEstudiante.cursos,
-        spreadsheetId: config.spreadsheetId,
-        dominioUsado: dominioEncontrado
-      }
-      
-      localStorage.setItem('eval_data', JSON.stringify(datosAGuardar))
-      console.log('💾 EMAIL GUARDADO EN LOCALSTORAGE:', emailEncontrado)
-      console.log('💾 Datos completos:', datosAGuardar)
-      
-      window.location.href = '/formulario'
       
     } catch (error: unknown) {
       console.error('❌ Error:', error)
@@ -308,7 +301,7 @@ export default function Login() {
                 color: '#5f6368',
                 marginTop: '8px'
               }}>
-                Ingresa solo tu nombre de usuario (sin @). El sistema buscará automáticamente.
+                Ingresa solo tu nombre de usuario (sin @).
               </div>
             </div>
 
@@ -353,20 +346,6 @@ export default function Login() {
                 {loading ? 'Verificando...' : 'Siguiente'}
               </button>
             </div>
-
-            {dominioEncontrado && !error && !loading && (
-              <div style={{
-                marginTop: '16px',
-                padding: '12px',
-                backgroundColor: '#e8f5e1',
-                color: '#1a5e20',
-                borderRadius: '8px',
-                fontSize: '13px',
-                textAlign: 'center'
-              }}>
-                ✅ Ingresaste con {dominioEncontrado}
-              </div>
-            )}
 
             {error && (
               <div style={{
