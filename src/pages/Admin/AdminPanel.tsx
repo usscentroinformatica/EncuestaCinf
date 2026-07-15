@@ -17,6 +17,7 @@ const AdminPanel = () => {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
+  const [nombreHoja, setNombreHoja] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,6 +43,7 @@ const AdminPanel = () => {
         setGoogleScriptUrl(data.googleScriptUrl || '');
         setPeriodo(data.periodo || '');
         setSpreadsheetId(data.spreadsheetId || '');
+        setNombreHoja(data.nombreHoja || '');
         
         if (data.spreadsheetUrl) {
           setPasoActual(3);
@@ -89,7 +91,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // 🔥 FUNCIÓN CORREGIDA - CREAR HOJA
+  // CREAR HOJA DE CÁLCULO (CORREGIDO)
   // ============================================
   
   const crearNuevaHoja = async () => {
@@ -109,11 +111,10 @@ const AdminPanel = () => {
     try {
       const PROXY_URL = '/api/google-script';
       
-      // 🔥 DATOS PARA EL PROXY (igual que en la consola)
       const datosParaProxy = {
         scriptUrl: googleScriptUrl,
-        accion: 'crearHojaCalculo',
-        nombre: 'Encuesta ' + new Date().toLocaleDateString('es-ES'),
+        action: 'crearHojaCalculo',
+        nombre: periodo, // Usa el período como nombre
         titulo: 'ENCUESTA DE SATISFACCIÓN DOCENTE',
         subtitulo: periodo,
         hojaBase: 'BaseUnificada',
@@ -130,7 +131,6 @@ const AdminPanel = () => {
 
       console.log('📤 Enviando al proxy:', datosParaProxy);
 
-      // 🔥 USAR POST (no GET)
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: {
@@ -139,8 +139,6 @@ const AdminPanel = () => {
         body: JSON.stringify(datosParaProxy)
       });
 
-      console.log('📥 Status:', response.status);
-      
       const result = await response.json();
       console.log('📥 Respuesta:', result);
 
@@ -154,11 +152,13 @@ const AdminPanel = () => {
           googleScriptUrl: googleScriptUrl,
           spreadsheetUrl: spreadsheetUrl,
           spreadsheetId: newSpreadsheetId,
+          nombreHoja: periodo,
           periodo: periodo,
           fechaActualizacion: new Date().toISOString()
         });
 
         setSpreadsheetId(newSpreadsheetId);
+        setNombreHoja(periodo);
         setMensaje(`✅ ¡Hoja creada!\n📊 ${spreadsheetUrl}`);
         setPasoActual(3);
         
@@ -178,7 +178,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // FUNCIONES PARA EXCEL
+  // PROCESAR EXCEL (CORREGIDO)
   // ============================================
 
   const procesarExcel = (file: File) => {
@@ -232,10 +232,11 @@ const AdminPanel = () => {
           }
         }
         
+        // Mapear datos correctamente
         const estudiantes = jsonData
           .map((row: any) => ({
             correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || row['EMail1']?.trim() || row['EMail2']?.trim() || '',
-            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
+            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || row['NombreCompleto'] || '',
             planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
             curso: row['Curso'] || '',
             seccion: row['Seccion'] || row['PEAD'] || '',
@@ -249,6 +250,7 @@ const AdminPanel = () => {
         
         console.log(`✅ Registros válidos: ${estudiantes.length}`);
         
+        // Eliminar duplicados
         const uniqueEstudiantes = [];
         const emailsVistos = new Set();
         
@@ -272,7 +274,7 @@ const AdminPanel = () => {
         
       } catch (error: any) {
         console.error('❌ Error:', error);
-        setMensaje(`❌ Error: ${error.message}`);
+        setMensaje(`❌ Error al procesar: ${error.message}`);
         setPreviewData([]);
       }
     };
@@ -284,6 +286,10 @@ const AdminPanel = () => {
     
     reader.readAsArrayBuffer(file);
   };
+
+  // ============================================
+  // ACTUALIZAR BASE UNIFICADA (CORREGIDO)
+  // ============================================
 
   const actualizarBaseUnificada = async () => {
     if (!googleScriptUrl) {
@@ -305,27 +311,47 @@ const AdminPanel = () => {
     setMensaje(`🔄 Actualizando ${previewData.length} estudiantes...`);
 
     try {
-      const PROXY_URL = '/api/google-script';
+      const spreadsheetIdActual = spreadsheetId || configActual?.spreadsheetId;
       
-      const response = await fetch(PROXY_URL, {
+      // Llamar directamente al Google Apps Script (evita problemas con el proxy)
+      const targetUrl = `${googleScriptUrl}`;
+      
+      console.log('📤 Llamando a GAS:', targetUrl);
+      console.log('📊 Datos a enviar:', previewData.length, 'registros');
+      
+      const response = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({
-          scriptUrl: googleScriptUrl,
-          spreadsheetId: spreadsheetId || configActual?.spreadsheetId,
-          action: 'actualizarBase',
+          accion: 'actualizarBase',
+          spreadsheetId: spreadsheetIdActual,
           data: previewData
         })
       });
 
-      const result = await response.json();
+      const text = await response.text();
+      console.log('📥 Respuesta cruda:', text.substring(0, 500));
+      
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        console.error('❌ No es JSON:', text);
+        throw new Error('El servidor no devolvió JSON válido');
+      }
 
-      if (result.success) {
-        setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados.`);
+      if (result.exito) {
+        setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados. Duplicados: ${result.duplicados || 0}`);
         setPreviewData([]);
+        // Resetear el input file
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         setTimeout(() => cargarConfiguracion(), 1500);
       } else {
-        throw new Error(result.error || 'Error al actualizar');
+        throw new Error(result.mensaje || 'Error al actualizar');
       }
 
     } catch (error: any) {
@@ -391,7 +417,7 @@ const AdminPanel = () => {
   );
 
   // ============================================
-  // RENDER
+  // RENDER PRINCIPAL
   // ============================================
 
   return (
@@ -402,6 +428,7 @@ const AdminPanel = () => {
     }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         
+        {/* HEADER */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -449,6 +476,7 @@ const AdminPanel = () => {
           </button>
         </div>
 
+        {/* PASOS */}
         <div style={{ 
           background: 'white', 
           borderRadius: '16px', 
@@ -504,6 +532,7 @@ const AdminPanel = () => {
           </div>
         </div>
 
+        {/* BOTONES NAVEGACIÓN */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
           {pasoActual > 1 && (
             <button
@@ -552,6 +581,7 @@ const AdminPanel = () => {
           )}
         </div>
 
+        {/* CONTENIDO */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
           
           {/* PASO 1 */}
@@ -730,6 +760,7 @@ const AdminPanel = () => {
                     📊 Ver hoja de cálculo
                   </a><br />
                   <strong>Período:</strong> {configActual.periodo}<br />
+                  <strong>Nombre:</strong> {nombreHoja || configActual?.nombreHoja || 'No definido'}<br />
                   <strong>ID:</strong> <code style={{ fontSize: '11px' }}>{spreadsheetId || configActual?.spreadsheetId}</code>
                 </div>
               )}
@@ -762,7 +793,7 @@ const AdminPanel = () => {
                   </label>
                 </div>
                 <small style={{ color: '#666', display: 'block', marginTop: '8px' }}>
-                  ⚠️ El Excel debe tener una hoja llamada <strong>"data"</strong> con columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, etc.
+                  ⚠️ El Excel debe tener columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, Seccion, Docente
                 </small>
               </div>
 
@@ -781,7 +812,20 @@ const AdminPanel = () => {
                       fontSize: '16px',
                       fontWeight: 'bold',
                       cursor: subiendoBase ? 'not-allowed' : 'pointer',
-                      marginBottom: '15px'
+                      marginBottom: '15px',
+                      transition: 'all 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!subiendoBase) {
+                        e.currentTarget.style.background = '#63ed12';
+                        e.currentTarget.style.color = '#000';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!subiendoBase) {
+                        e.currentTarget.style.background = '#5a2290';
+                        e.currentTarget.style.color = 'white';
+                      }
                     }}
                   >
                     {subiendoBase ? '📤 Subiendo...' : `📤 Actualizar BaseUnificada (${previewData.length} registros)`}
@@ -825,6 +869,7 @@ const AdminPanel = () => {
             </div>
           )}
 
+          {/* MENSAJE */}
           {mensaje && (
             <div style={{
               marginTop: '20px',
