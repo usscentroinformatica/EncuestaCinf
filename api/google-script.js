@@ -1,6 +1,5 @@
-// api/google-script.js - VERSIÓN SIMPLIFICADA
+// api/google-script.js
 export default async function handler(req, res) {
-  // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -9,7 +8,32 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Solo permitir POST
+  if (req.method === 'GET') {
+    try {
+      const { scriptUrl, action, email, spreadsheetId } = req.query;
+      
+      if (!scriptUrl) {
+        return res.status(400).json({ error: 'Falta scriptUrl' });
+      }
+      
+      let targetUrl = scriptUrl;
+      const params = [];
+      if (action) params.push(`accion=${encodeURIComponent(action)}`);
+      if (email) params.push(`usuario=${encodeURIComponent(email)}`);
+      if (spreadsheetId) params.push(`spreadsheetId=${encodeURIComponent(spreadsheetId)}`);
+      
+      if (params.length > 0) {
+        targetUrl += `?${params.join('&')}`;
+      }
+      
+      const response = await fetch(targetUrl);
+      const data = await response.json();
+      return res.status(200).json(data);
+    } catch (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
@@ -17,19 +41,27 @@ export default async function handler(req, res) {
   try {
     const { scriptUrl, action, ...datos } = req.body;
     
-    console.log('📤 Proxy recibido:', { scriptUrl, action });
+    console.log('📤 Proxy recibido:', { scriptUrl, action, datos });
     
     if (!scriptUrl) {
       return res.status(400).json({ error: 'Falta scriptUrl' });
     }
 
-    // 🔥 CONSTRUIR PAYLOAD PARA GAS - CASO ESPECÍFICO PARA VERIFICAR ESTUDIANTE
+    // 🔥 CONSTRUIR PAYLOAD PARA GAS
     let payload = {};
     
     if (action === 'verificarEstudiante') {
       payload = {
         accion: 'verificarEstudiante',
-        usuario: datos.usuario || datos.email || ''
+        usuario: datos.usuario || datos.email || '',
+        spreadsheetId: datos.spreadsheetId  // ← 🔥 PASAR EL ID
+      };
+    } else if (action === 'guardarEncuesta') {
+      payload = {
+        accion: 'guardarEncuesta',
+        usuario: datos.usuario || '',
+        spreadsheetId: datos.spreadsheetId,  // ← 🔥 PASAR EL ID
+        ...datos
       };
     } else if (action === 'crearHojaCalculo') {
       payload = {
@@ -48,35 +80,29 @@ export default async function handler(req, res) {
         data: datos.data || []
       };
     } else {
-      // Para cualquier otra acción
       payload = { accion: action, ...datos };
     }
 
     console.log('📤 Enviando a GAS:', scriptUrl);
     console.log('📦 Payload:', JSON.stringify(payload));
 
-    // 🔥 HACER LA PETICIÓN A GOOGLE APPS SCRIPT
     const response = await fetch(scriptUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
     const text = await response.text();
     console.log('📥 Respuesta cruda de GAS:', text);
 
-    // 🔥 SI LA RESPUESTA ES HTML, DEVOLVER ERROR
     if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
       console.error('❌ GAS devolvió HTML:', text.substring(0, 200));
       return res.status(500).json({
         success: false,
-        error: 'Google Apps Script devolvió HTML en lugar de JSON. Verifica que la URL sea correcta y que el script esté desplegado.'
+        error: 'Google Apps Script devolvió HTML en lugar de JSON.'
       });
     }
 
-    // Intentar parsear JSON
     let result;
     try {
       result = JSON.parse(text);
@@ -89,7 +115,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // 🔥 DEVOLVER LA RESPUESTA AL FRONTEND
     return res.status(200).json(result);
 
   } catch (error) {
