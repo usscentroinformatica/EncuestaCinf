@@ -2,20 +2,13 @@ import { useState, useEffect } from 'react'
 import logoUss from '../assets/uss.png'
 import { esAdmin, getConfigCompleta, getPeriodoActual } from '../services/authService'
 
-interface Curso {
-  nombre: string;
-  curso: string;
-  pead: string;
-  docente: string;
-  completado: boolean;
-  planEstudio: string;
-}
+// ✅ Eliminamos la interfaz Curso que no se usa
 
 export default function Login() {
   const [nombreUsuario, setNombreUsuario] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [dominioEncontrado, setDominioEncontrado] = useState('')
+  // ✅ Eliminamos 'dominioEncontrado' porque no se usa
   const [periodoActual, setPeriodoActual] = useState('Cargando...')
 
   useEffect(() => {
@@ -40,7 +33,6 @@ export default function Login() {
 
     setLoading(true)
     setError('')
-    setDominioEncontrado('')
 
     try {
       const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
@@ -76,7 +68,6 @@ export default function Login() {
       // TERCERO: Buscar como ESTUDIANTE usando el PROXY
       console.log('🔍 Buscando estudiante:', nombreUsuarioLimpio)
       
-      // ✅ USAR EL PROXY EN VEZ DE LLAMAR DIRECTAMENTE A GOOGLE
       const response = await fetch('/api/google-script', {
         method: 'POST',
         headers: {
@@ -93,7 +84,6 @@ export default function Login() {
       const data = await response.json()
       console.log('📥 Respuesta del proxy:', data)
 
-      // ✅ VERIFICAR LA RESPUESTA CORRECTA (usando exito, no success)
       if (data.exito === true && data.estudiante) {
         const estudiante = data.estudiante
         
@@ -127,7 +117,6 @@ export default function Login() {
         window.location.href = '/formulario'
         
       } else {
-        // No encontrado o error
         const mensaje = data.mensaje || 'Usuario no encontrado. Verifica que estés registrado.'
         setError(`❌ ${mensaje}`)
         setLoading(false)
