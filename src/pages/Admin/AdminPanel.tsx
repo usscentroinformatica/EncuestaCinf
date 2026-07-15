@@ -91,7 +91,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // CREAR HOJA DE CÁLCULO (DIRECTO A GAS)
+  // CREAR HOJA (DIRECTO A GAS - SIN PROXY)
   // ============================================
   
   const crearNuevaHoja = async () => {
@@ -109,9 +109,6 @@ const AdminPanel = () => {
     setMensaje('🔄 Creando nueva hoja de cálculo...');
 
     try {
-      // 🔥 LLAMAR DIRECTAMENTE A GAS (sin proxy)
-      const targetUrl = googleScriptUrl;
-      
       const payload = {
         accion: 'crearHojaCalculo',
         nombre: periodo,
@@ -129,10 +126,10 @@ const AdminPanel = () => {
         ]
       };
 
-      console.log('📤 Enviando a GAS:', targetUrl);
+      console.log('📤 Enviando a GAS:', googleScriptUrl);
       console.log('📦 Payload:', payload);
 
-      const response = await fetch(targetUrl, {
+      const response = await fetch(googleScriptUrl, {
         method: 'POST',
         mode: 'cors',
         headers: {
@@ -156,7 +153,6 @@ const AdminPanel = () => {
         const newSpreadsheetId = result.spreadsheetId;
         const spreadsheetUrl = result.spreadsheetUrl;
         
-        // Guardar en Firebase
         const configRef = ref(db, 'encuesta-config/config');
         await set(configRef, {
           googleScriptUrl: googleScriptUrl,
@@ -195,14 +191,6 @@ const AdminPanel = () => {
     setPreviewData([]);
     setMensaje('');
     
-    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
-    }
-    
-    localStorage.removeItem('previewData');
-    sessionStorage.removeItem('previewData');
-    
     if (!file || file.size === 0) {
       setMensaje('❌ El archivo está vacío');
       return;
@@ -223,8 +211,6 @@ const AdminPanel = () => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         
-        console.log('📚 Hojas encontradas:', workbook.SheetNames);
-        
         const sheetName = workbook.SheetNames[0];
         const hojaData = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(hojaData);
@@ -236,7 +222,6 @@ const AdminPanel = () => {
           console.log('📋 Columnas encontradas:', columnas);
         }
         
-        // Mapear datos
         const estudiantes = jsonData
           .map((row: any) => ({
             correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || '',
@@ -283,7 +268,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // ACTUALIZAR BASE UNIFICADA (DIRECTO A GAS)
+  // ACTUALIZAR BASE (DIRECTO A GAS - SIN PROXY)
   // ============================================
 
   const actualizarBaseUnificada = async () => {
@@ -308,19 +293,16 @@ const AdminPanel = () => {
     try {
       const spreadsheetIdActual = spreadsheetId || configActual?.spreadsheetId;
       
-      // 🔥 LLAMAR DIRECTAMENTE A GAS (sin proxy)
-      const targetUrl = googleScriptUrl;
-      
       const payload = {
         accion: 'actualizarBase',
         spreadsheetId: spreadsheetIdActual,
         data: previewData
       };
 
-      console.log('📤 Enviando a GAS:', targetUrl);
+      console.log('📤 Enviando a GAS:', googleScriptUrl);
       console.log('📦 Payload:', payload);
 
-      const response = await fetch(targetUrl, {
+      const response = await fetch(googleScriptUrl, {
         method: 'POST',
         mode: 'cors',
         headers: {
@@ -363,7 +345,7 @@ const AdminPanel = () => {
   // PASO INDICATOR
   // ============================================
 
-  const PasoIndicator = ({ numero, titulo, activo, completado, onClick }: { numero: number; titulo: string; activo: boolean; completado: boolean; onClick: () => void }) => (
+  const PasoIndicator = ({ numero, titulo, activo, completado, onClick }: any) => (
     <div 
       onClick={onClick}
       style={{ 
@@ -371,8 +353,7 @@ const AdminPanel = () => {
         textAlign: 'center', 
         position: 'relative',
         cursor: completado ? 'pointer' : (activo ? 'default' : 'not-allowed'),
-        opacity: completado ? 1 : (activo ? 1 : 0.5),
-        transition: 'all 0.3s ease'
+        opacity: completado ? 1 : (activo ? 1 : 0.5)
       }}
     >
       <div style={{
@@ -386,9 +367,7 @@ const AdminPanel = () => {
         alignItems: 'center',
         justifyContent: 'center',
         fontWeight: 'bold',
-        fontSize: '18px',
-        transition: 'all 0.3s ease',
-        boxShadow: activo ? '0 0 0 4px rgba(90,34,144,0.2)' : 'none'
+        fontSize: '18px'
       }}>
         {completado ? '✓' : numero}
       </div>
@@ -399,17 +378,6 @@ const AdminPanel = () => {
       }}>
         {titulo}
       </div>
-      {numero < 3 && (
-        <div style={{
-          position: 'absolute',
-          top: '20px',
-          right: '-50%',
-          width: '100%',
-          height: '2px',
-          background: completado ? '#63ed12' : '#e0e0e0',
-          zIndex: 0
-        }} />
-      )}
     </div>
   );
 
@@ -433,8 +401,7 @@ const AdminPanel = () => {
           marginBottom: '30px',
           background: 'rgba(255,255,255,0.1)',
           padding: '15px 25px',
-          borderRadius: '12px',
-          backdropFilter: 'blur(10px)'
+          borderRadius: '12px'
         }}>
           <div>
             <h1 style={{ color: 'white', fontSize: '24px', margin: 0 }}>⚙️ Panel de Administración</h1>
@@ -446,9 +413,6 @@ const AdminPanel = () => {
           <button
             onClick={cerrarSesion}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
               padding: '10px 20px',
               background: 'rgba(255,255,255,0.2)',
               border: '1px solid rgba(255,255,255,0.3)',
@@ -456,20 +420,10 @@ const AdminPanel = () => {
               color: 'white',
               cursor: 'pointer',
               fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#c5221f';
-              e.currentTarget.style.borderColor = '#c5221f';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+              fontWeight: '500'
             }}
           >
-            <span style={{ fontSize: '16px' }}>🚪</span>
-            Cerrar sesión
+            🚪 Cerrar sesión
           </button>
         </div>
 
@@ -481,101 +435,29 @@ const AdminPanel = () => {
           marginBottom: '30px',
           boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '20px' }}>
             <PasoIndicator 
               numero={1} 
               titulo="Configurar URL" 
               activo={pasoActual === 1} 
               completado={configActual?.googleScriptUrl ? true : false}
-              onClick={() => {
-                if (configActual?.googleScriptUrl) {
-                  setPasoActual(1);
-                  setMensaje('📝 Puedes editar la configuración de la URL');
-                } else {
-                  setMensaje('⚠️ Primero completa el paso 1');
-                }
-              }}
+              onClick={() => setPasoActual(1)}
             />
             <PasoIndicator 
               numero={2} 
               titulo="Crear hoja" 
               activo={pasoActual === 2} 
               completado={configActual?.spreadsheetUrl ? true : false}
-              onClick={() => {
-                if (configActual?.googleScriptUrl) {
-                  setPasoActual(2);
-                  setMensaje('📊 Puedes crear una nueva hoja de cálculo');
-                } else {
-                  setMensaje('⚠️ Primero completa el paso 1');
-                }
-              }}
+              onClick={() => setPasoActual(2)}
             />
             <PasoIndicator 
               numero={3} 
               titulo="Cargar estudiantes" 
               activo={pasoActual === 3} 
               completado={false}
-              onClick={() => {
-                if (configActual?.spreadsheetUrl) {
-                  setPasoActual(3);
-                  setMensaje('👥 Puedes cargar estudiantes a la hoja activa');
-                } else if (configActual?.googleScriptUrl) {
-                  setMensaje('⚠️ Primero crea una hoja en el paso 2');
-                } else {
-                  setMensaje('⚠️ Primero completa los pasos 1 y 2');
-                }
-              }}
+              onClick={() => setPasoActual(3)}
             />
           </div>
-        </div>
-
-        {/* BOTONES NAVEGACIÓN */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
-          {pasoActual > 1 && (
-            <button
-              onClick={() => {
-                setPasoActual(pasoActual - 1);
-                setMensaje(`Volviendo al paso ${pasoActual - 1}`);
-              }}
-              style={{
-                padding: '10px 20px',
-                background: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              ← Anterior
-            </button>
-          )}
-          
-          {pasoActual < 3 && configActual?.spreadsheetUrl && (
-            <button
-              onClick={() => {
-                setPasoActual(pasoActual + 1);
-                setMensaje(`Avanzando al paso ${pasoActual + 1}`);
-              }}
-              style={{
-                padding: '10px 20px',
-                background: '#63ed12',
-                color: '#000',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              Siguiente →
-            </button>
-          )}
         </div>
 
         {/* CONTENIDO */}
@@ -584,136 +466,70 @@ const AdminPanel = () => {
           {/* PASO 1 */}
           {pasoActual === 1 && (
             <div>
-              <h2 style={{ color: '#5a2290', marginBottom: '10px' }}>📝 Configurar URL del Apps Script</h2>
-              <p style={{ color: '#666', marginBottom: '25px' }}>Necesitas desplegar tu Google Apps Script como aplicación web</p>
+              <h2 style={{ color: '#5a2290' }}>📝 Configurar URL del Apps Script</h2>
+              <p style={{ color: '#666' }}>Necesitas desplegar tu Google Apps Script como aplicación web</p>
               
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>URL del Apps Script</label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    value={googleScriptUrl}
-                    onChange={(e) => setGoogleScriptUrl(e.target.value)}
-                    placeholder="https://script.google.com/macros/s/XXXX/exec"
-                    disabled={!editandoUrl}
-                    style={{
-                      flex: 1,
-                      padding: '12px 16px',
-                      border: `2px solid ${editandoUrl ? '#63ed12' : '#e0e0e0'}`,
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      background: editandoUrl ? 'white' : '#f5f5f5',
-                      color: editandoUrl ? '#333' : '#999',
-                      cursor: editandoUrl ? 'text' : 'not-allowed',
-                      transition: 'all 0.3s ease'
-                    }}
-                  />
-                  <button
-                    onClick={() => setEditandoUrl(!editandoUrl)}
-                    style={{
-                      padding: '10px 20px',
-                      background: editandoUrl ? '#63ed12' : '#5a2290',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '500',
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    {editandoUrl ? '💾 Listo' : '✏️ Editar'}
-                  </button>
-                </div>
-                <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>📌 La URL debe terminar en <strong>/exec</strong></small>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>URL del Apps Script</label>
+                <input
+                  type="text"
+                  value={googleScriptUrl}
+                  onChange={(e) => setGoogleScriptUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/XXXX/exec"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
               </div>
 
               <div style={{ marginBottom: '25px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>Período</label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    value={periodo}
-                    onChange={(e) => setPeriodo(e.target.value)}
-                    placeholder="Ej: AGOSTO 2026"
-                    disabled={!editandoPeriodo}
-                    style={{
-                      flex: 1,
-                      padding: '12px 16px',
-                      border: `2px solid ${editandoPeriodo ? '#63ed12' : '#e0e0e0'}`,
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      background: editandoPeriodo ? 'white' : '#f5f5f5',
-                      color: editandoPeriodo ? '#333' : '#999',
-                      cursor: editandoPeriodo ? 'text' : 'not-allowed',
-                      transition: 'all 0.3s ease'
-                    }}
-                  />
-                  <button
-                    onClick={() => setEditandoPeriodo(!editandoPeriodo)}
-                    style={{
-                      padding: '10px 20px',
-                      background: editandoPeriodo ? '#63ed12' : '#5a2290',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '500',
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    {editandoPeriodo ? '💾 Listo' : '✏️ Editar'}
-                  </button>
-                </div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Período</label>
+                <input
+                  type="text"
+                  value={periodo}
+                  onChange={(e) => setPeriodo(e.target.value)}
+                  placeholder="Ej: AGOSTO 2026"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
               </div>
 
               <button
                 onClick={guardarConfiguracion}
-                disabled={loading || !googleScriptUrl.trim() || editandoUrl || editandoPeriodo}
+                disabled={loading || !googleScriptUrl.trim()}
                 style={{
                   width: '100%',
                   padding: '14px',
-                  background: (loading || !googleScriptUrl.trim() || editandoUrl || editandoPeriodo) ? '#ccc' : '#5a2290',
+                  background: (loading || !googleScriptUrl.trim()) ? '#ccc' : '#5a2290',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '16px',
                   fontWeight: 'bold',
-                  cursor: (loading || !googleScriptUrl.trim() || editandoUrl || editandoPeriodo) ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease'
+                  cursor: (loading || !googleScriptUrl.trim()) ? 'not-allowed' : 'pointer'
                 }}
               >
                 {loading ? '💾 Guardando...' : '💾 Guardar configuración'}
               </button>
-              
-              {(editandoUrl || editandoPeriodo) && (
-                <p style={{ marginTop: '15px', fontSize: '12px', color: '#ff6d00', textAlign: 'center' }}>
-                  ⚠️ Termina de editar antes de guardar
-                </p>
-              )}
             </div>
           )}
 
           {/* PASO 2 */}
           {pasoActual === 2 && (
             <div>
-              <h2 style={{ color: '#5a2290', marginBottom: '10px' }}>🚀 Crear hoja de cálculo</h2>
-              <p style={{ color: '#666', marginBottom: '25px' }}>
+              <h2 style={{ color: '#5a2290' }}>🚀 Crear hoja de cálculo</h2>
+              <p style={{ color: '#666' }}>
                 Se creará una nueva hoja para el período <strong>{periodo || configActual?.periodo}</strong>
               </p>
-
-              {configActual?.googleScriptUrl && (
-                <div style={{ 
-                  background: '#f0f7ff', 
-                  padding: '15px', 
-                  borderRadius: '8px', 
-                  marginBottom: '20px',
-                  fontSize: '13px'
-                }}>
-                  <strong>📋 Configuración actual:</strong><br />
-                  URL del Script: <code style={{ fontSize: '11px' }}>{configActual.googleScriptUrl?.substring(0, 60)}...</code><br />
-                  Período: <strong>{configActual.periodo}</strong>
-                </div>
-              )}
 
               <button
                 onClick={crearNuevaHoja}
@@ -728,7 +544,7 @@ const AdminPanel = () => {
                   fontSize: '16px',
                   fontWeight: 'bold',
                   cursor: (creando || !periodo.trim() || !googleScriptUrl) ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease'
+                  marginTop: '20px'
                 }}
               >
                 {creando ? '🔄 Creando hoja...' : '📊 Crear hoja de cálculo'}
@@ -739,63 +555,43 @@ const AdminPanel = () => {
           {/* PASO 3 */}
           {pasoActual === 3 && (
             <div>
-              <h2 style={{ color: '#5a2290', marginBottom: '10px' }}>👥 Cargar estudiantes</h2>
-              <p style={{ color: '#666', marginBottom: '25px' }}>
-                Sube un archivo Excel con el padrón de estudiantes
-              </p>
+              <h2 style={{ color: '#5a2290' }}>👥 Cargar estudiantes</h2>
+              <p style={{ color: '#666' }}>Sube un archivo Excel con el padrón de estudiantes</p>
 
               {configActual?.spreadsheetUrl && (
                 <div style={{ 
                   background: '#e8f5e1', 
                   padding: '15px', 
                   borderRadius: '8px', 
-                  marginBottom: '20px',
-                  fontSize: '13px'
+                  marginBottom: '20px'
                 }}>
                   <strong>✅ Hoja activa:</strong><br />
                   <a href={configActual.spreadsheetUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#5a2290' }}>
                     📊 Ver hoja de cálculo
                   </a><br />
                   <strong>Período:</strong> {configActual.periodo}<br />
-                  <strong>Nombre:</strong> {nombreHoja || configActual?.nombreHoja || 'No definido'}<br />
-                  <strong>ID:</strong> <code style={{ fontSize: '11px' }}>{spreadsheetId || configActual?.spreadsheetId}</code>
+                  <strong>ID:</strong> <code>{spreadsheetId || configActual?.spreadsheetId}</code>
                 </div>
               )}
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>📂 Archivo Excel</label>
-                <div style={{ 
-                  border: '2px dashed #ccc', 
-                  borderRadius: '8px', 
-                  padding: '30px',
-                  textAlign: 'center',
-                  background: '#fafafa',
-                  transition: 'all 0.3s ease'
-                }}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) procesarExcel(file);
-                    }}
-                    style={{ display: 'none' }}
-                    id="file-upload"
-                  />
-                  <label htmlFor="file-upload" style={{ cursor: 'pointer', display: 'block' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '10px' }}>📊</div>
-                    <div style={{ fontWeight: '500', marginBottom: '5px' }}>Haz clic o arrastra un archivo</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>.xlsx, .xls o .csv</div>
-                  </label>
-                </div>
-                <small style={{ color: '#666', display: 'block', marginTop: '8px' }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) procesarExcel(file);
+                  }}
+                  style={{ display: 'block', width: '100%', padding: '10px' }}
+                />
+                <small style={{ color: '#666' }}>
                   ⚠️ El Excel debe tener columnas: <strong>EMaiCrec</strong>, Apellido, Nombre, Curso, Seccion, Docente
                 </small>
               </div>
 
               {previewData.length > 0 && (
-                <div style={{ marginBottom: '20px' }}>
+                <div>
                   <button
                     onClick={actualizarBaseUnificada}
                     disabled={subiendoBase}
@@ -809,20 +605,7 @@ const AdminPanel = () => {
                       fontSize: '16px',
                       fontWeight: 'bold',
                       cursor: subiendoBase ? 'not-allowed' : 'pointer',
-                      marginBottom: '15px',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!subiendoBase) {
-                        e.currentTarget.style.background = '#63ed12';
-                        e.currentTarget.style.color = '#000';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!subiendoBase) {
-                        e.currentTarget.style.background = '#5a2290';
-                        e.currentTarget.style.color = 'white';
-                      }
+                      marginBottom: '15px'
                     }}
                   >
                     {subiendoBase ? '📤 Subiendo...' : `📤 Actualizar BaseUnificada (${previewData.length} registros)`}
@@ -836,9 +619,9 @@ const AdminPanel = () => {
                     fontSize: '12px'
                   }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead style={{ position: 'sticky', top: 0 }}>
+                      <thead>
                         <tr style={{ background: '#5a2290', color: 'white' }}>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo (EMaiCrec)</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Correo</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Nombre</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Curso</th>
                           <th style={{ padding: '10px', textAlign: 'left' }}>Sección</th>
