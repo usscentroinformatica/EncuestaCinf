@@ -1,6 +1,6 @@
 // api/google-script.js
 export default async function handler(req, res) {
-  // Configurar CORS
+  // Configurar CORS para el frontend
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -9,10 +9,10 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  try {
-    // Manejar GET
-    if (req.method === 'GET') {
-      const { scriptUrl, action, periodo, email, spreadsheetId } = req.query;
+  // Solo permitir POST para acciones que modifican datos
+  if (req.method === 'GET') {
+    try {
+      const { scriptUrl, action, email, spreadsheetId } = req.query;
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'Falta scriptUrl' });
@@ -21,7 +21,6 @@ export default async function handler(req, res) {
       let targetUrl = scriptUrl;
       const params = [];
       if (action) params.push(`accion=${encodeURIComponent(action)}`);
-      if (periodo) params.push(`periodo=${encodeURIComponent(periodo)}`);
       if (email) params.push(`usuario=${encodeURIComponent(email)}`);
       if (spreadsheetId) params.push(`spreadsheetId=${encodeURIComponent(spreadsheetId)}`);
       
@@ -35,115 +34,110 @@ export default async function handler(req, res) {
       const data = await response.json();
       
       return res.status(200).json(data);
+      
+    } catch (error) {
+      console.error('❌ Error GET:', error);
+      return res.status(500).json({ success: false, error: error.message });
     }
-    
-    // Manejar POST
-    if (req.method === 'POST') {
-      const { scriptUrl, spreadsheetId, action, data, ...bodyData } = req.body;
-      
-      console.log('📤 POST recibido:', { scriptUrl, spreadsheetId, action });
-      
-      if (!scriptUrl) {
-        return res.status(400).json({ error: 'Falta scriptUrl' });
-      }
-      
-      // Si es una acción que maneja el proxy directamente
-      if (action === 'testConexion') {
-        return res.status(200).json({ 
-          success: true, 
-          mensaje: 'Proxy funcionando correctamente',
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      // Construir payload para Google Apps Script
-      let payload = {};
-      
-      if (action === 'actualizarBase') {
-        payload = {
-          accion: 'actualizarBase',
-          spreadsheetId: spreadsheetId,
-          data: data || []
-        };
-      } else if (action === 'crearHojaCalculo') {
-        payload = {
-          accion: 'crearHojaCalculo',
-          nombre: bodyData.nombre || 'Encuesta ' + new Date().toLocaleDateString('es-ES'),
-          titulo: bodyData.titulo || 'ENCUESTA DE SATISFACCIÓN DOCENTE',
-          subtitulo: bodyData.subtitulo || '',
-          hojaBase: bodyData.hojaBase || 'BaseUnificada',
-          hojaRespuestas: bodyData.hojaRespuestas || 'Respuestas',
-          preguntas: bodyData.preguntas || []
-        };
-      } else {
-        // Otras acciones (guardarEncuesta, verificarEstudiante, etc.)
-        payload = bodyData;
-        // Asegurar que tenga accion
-        if (!payload.accion && action) {
-          payload.accion = action;
-        }
-      }
-      
-      // Construir URL final
-      let targetUrl = scriptUrl;
-      if (spreadsheetId && !action?.includes('actualizarBase')) {
-        const separator = targetUrl.includes('?') ? '&' : '?';
-        targetUrl += `${separator}spreadsheetId=${encodeURIComponent(spreadsheetId)}`;
-      }
-      
-      console.log('📤 Enviando a GAS:', targetUrl);
-      console.log('📦 Payload:', JSON.stringify(payload).substring(0, 300));
-      
-      // Hacer la petición a Google Apps Script
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      const text = await response.text();
-      console.log('📥 Respuesta cruda de GAS:', text.substring(0, 500));
-      
-      // Intentar parsear JSON
-      let dataResult;
-      try {
-        dataResult = JSON.parse(text);
-      } catch (e) {
-        console.error('❌ GAS no devolvió JSON:', text);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'El servidor no devolvió JSON válido',
-          raw: text.substring(0, 200)
-        });
-      }
-      
-      // Formatear respuesta según acción
-      if (action === 'actualizarBase') {
-        return res.status(200).json({
-          success: true,
-          agregados: dataResult.agregados || data?.length || 0,
-          duplicados: dataResult.duplicados || 0,
-          mensaje: dataResult.mensaje || 'Base actualizada',
-          ...dataResult
-        });
-      }
-      
-      if (action === 'crearHojaCalculo') {
-        return res.status(200).json(dataResult);
-      }
-      
-      return res.status(200).json(dataResult);
-    }
-    
+  }
+
+  if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  try {
+    const { scriptUrl, action, ...datos } = req.body;
     
+    console.log('📤 Proxy POST recibido:', { scriptUrl, action });
+    
+    if (!scriptUrl) {
+      return res.status(400).json({ error: 'Falta scriptUrl' });
+    }
+
+    // Construir el payload para Google Apps Script
+    let payload = {};
+    
+    if (action === 'crearHojaCalculo') {
+      payload = {
+        accion: 'crearHojaCalculo',
+        nombre: datos.nombre || 'Encuesta ' + new Date().toLocaleDateString('es-ES'),
+        titulo: datos.titulo || 'ENCUESTA DE SATISFACCIÓN DOCENTE',
+        subtitulo: datos.subtitulo || '',
+        hojaBase: datos.hojaBase || 'BaseUnificada',
+        hojaRespuestas: datos.hojaRespuestas || 'Respuestas',
+        preguntas: datos.preguntas || []
+      };
+    } else if (action === 'actualizarBase') {
+      payload = {
+        accion: 'actualizarBase',
+        spreadsheetId: datos.spreadsheetId,
+        data: datos.data || []
+      };
+    } else if (action === 'guardarEncuesta') {
+      payload = {
+        accion: 'guardarEncuesta',
+        ...datos
+      };
+    } else if (action === 'verificarEstudiante') {
+      payload = {
+        accion: 'verificarEstudiante',
+        usuario: datos.usuario || datos.email
+      };
+    } else {
+      // Otras acciones
+      payload = { accion: action, ...datos };
+    }
+
+    console.log('📤 Enviando a GAS:', scriptUrl);
+    console.log('📦 Payload:', JSON.stringify(payload).substring(0, 500));
+
+    // Hacer la petición a Google Apps Script
+    const response = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const text = await response.text();
+    console.log('📥 Respuesta cruda de GAS:', text.substring(0, 500));
+
+    // Intentar parsear JSON
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('❌ GAS no devolvió JSON válido:', text);
+      return res.status(500).json({
+        success: false,
+        error: 'El servidor no devolvió JSON válido',
+        raw: text.substring(0, 200)
+      });
+    }
+
+    // Formatear respuesta según acción
+    if (action === 'actualizarBase') {
+      return res.status(200).json({
+        success: true,
+        exito: data.exito || true,
+        agregados: data.agregados || datos.data?.length || 0,
+        duplicados: data.duplicados || 0,
+        mensaje: data.mensaje || 'Base actualizada',
+        ...data
+      });
+    }
+
+    if (action === 'crearHojaCalculo') {
+      return res.status(200).json(data);
+    }
+
+    return res.status(200).json(data);
+
   } catch (error) {
-    console.error('❌ Error en handler:', error);
-    return res.status(500).json({ 
-      success: false, 
+    console.error('❌ Error en proxy:', error);
+    return res.status(500).json({
+      success: false,
       error: error.message || 'Error interno del servidor'
     });
   }
