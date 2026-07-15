@@ -18,7 +18,6 @@ export default function Login() {
   const [dominioEncontrado, setDominioEncontrado] = useState('')
   const [periodoActual, setPeriodoActual] = useState('Cargando...')
 
-  // Cargar el período desde Firebase al iniciar
   useEffect(() => {
     const cargarPeriodo = async () => {
       try {
@@ -46,7 +45,6 @@ export default function Login() {
     try {
       const nombreUsuarioLimpio = nombreUsuario.toLowerCase().trim()
       
-      // Lista de dominios a probar
       const dominios = ['@uss.edu.pe', '@gmail.com', '@hotmail.com', '@hotmail.es']
       
       let emailEncontrado = ''
@@ -60,13 +58,15 @@ export default function Login() {
         return
       }
       
-      if (!config.spreadsheetId) {
-        setError('⚠️ La hoja de cálculo no está configurada. Contacta al administrador.')
-        setLoading(false)
-        return
-      }
+      // 🔧 MODIFICACIÓN TEMPORAL: Comentamos la verificación del spreadsheetId
+      console.log('🔧 MODO TEMPORAL: Verificación de spreadsheetId desactivada')
+      // if (!config.spreadsheetId) {
+      //   setError('⚠️ La hoja de cálculo no está configurada. Contacta al administrador.')
+      //   setLoading(false)
+      //   return
+      // }
       
-      // PRIMERO: Verificar si es ADMINISTRADOR (solo con @uss.edu.pe)
+      // PRIMERO: Verificar si es ADMINISTRADOR
       const emailAdmin = `${nombreUsuarioLimpio}@uss.edu.pe`
       const esAdministrador = await esAdmin(emailAdmin)
       
@@ -79,7 +79,14 @@ export default function Login() {
         return
       }
       
-      // SEGUNDO: Buscar como ESTUDIANTE en la base de datos
+      // SEGUNDO: Buscar como ESTUDIANTE
+      // Si no hay spreadsheetId, mostramos error solo para estudiantes
+      if (!config.spreadsheetId) {
+        setError('⚠️ La hoja de cálculo no está configurada. El administrador debe configurarla.')
+        setLoading(false)
+        return
+      }
+      
       for (const dominio of dominios) {
         const emailProbar = `${nombreUsuarioLimpio}${dominio}`
         
@@ -107,14 +114,12 @@ export default function Login() {
         }
       }
       
-      // Si no se encontró al estudiante
       if (!emailEncontrado || !datosEstudiante) {
         setError(`❌ Usuario "${nombreUsuarioLimpio}" no encontrado. Verifica que esté registrado en la base de datos.`)
         setLoading(false)
         return
       }
       
-      // Es estudiante normal
       const pendientes = datosEstudiante.cursos.filter((curso: Curso) => !curso.completado)
       
       if (pendientes.length === 0) {
@@ -123,7 +128,6 @@ export default function Login() {
         return
       }
       
-      // Guardar el email REAL que está en la base de datos
       const datosAGuardar = {
         email: emailEncontrado,
         cursos: datosEstudiante.cursos,
