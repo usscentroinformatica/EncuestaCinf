@@ -145,6 +145,9 @@ export default function Formulario() {
   const progreso = respuestas.filter(r => r !== '').length + (estrellasSeleccionadas > 0 ? 1 : 0)
   const porcentaje = Math.round((progreso / TOTAL_PREGUNTAS) * 100)
 
+  // ============================================
+  // 🔥 FUNCIÓN ENVIAR CORREGIDA
+  // ============================================
   const enviar = async () => {
     const respuestasCompletas = respuestas.every((r, i) => i === 5 || r !== '');
     if (!respuestasCompletas || estrellasSeleccionadas === 0) {
@@ -167,35 +170,45 @@ export default function Formulario() {
 
     try {
       const cursoLimpio = limpiarNombreCurso(info.curso);
-      const respuestasFinales = [...respuestas];
-      respuestasFinales[5] = `${estrellasSeleccionadas} estrella${estrellasSeleccionadas !== 1 ? 's' : ''}`;
+      
+      // 🔥 CONSTRUIR PAYLOAD CON EL FORMATO QUE ESPERA GAS
+      const payload = {
+        scriptUrl: apiUrl,
+        spreadsheetId: spreadsheetId,
+        accion: 'guardarEncuesta',
+        usuario: datos.email,
+        nombre: info.nombre,
+        planEstudio: info.planEstudio || '',
+        curso: cursoLimpio,
+        pead: info.pead,
+        docente: info.docente,
+        // 🔥 Enviar las respuestas como p1, p2, p3...
+        p1: respuestas[0] || '',
+        p2: respuestas[1] || '',
+        p3: respuestas[2] || '',
+        p4: respuestas[3] || '',
+        p5: respuestas[4] || '',
+        p6: respuestas[5] || '',
+        p7: `${estrellasSeleccionadas} estrella${estrellasSeleccionadas !== 1 ? 's' : ''}`,
+        p8: '',
+        p9: '',
+        p10: ''
+      };
+
+      console.log('📤 Enviando a proxy:', payload);
 
       const PROXY_URL = '/api/google-script';
-      
-      console.log('🌐 Proxy URL:', PROXY_URL);
-      console.log('📦 Enviando a script:', apiUrl);
-      console.log('🔑 spreadsheetId enviado:', spreadsheetId);
       
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scriptUrl: apiUrl,
-          spreadsheetId: spreadsheetId,
-          email: datos.email,
-          nombre: info.nombre,
-          planestudio: info.planEstudio || '',
-          curso: cursoLimpio,
-          pead: info.pead,
-          docente: info.docente,
-          respuestas: respuestasFinales.join('|||')
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
       console.log('📥 Respuesta:', result);
 
-      if (result.success) {
+      if (result.exito === true) {
         const datosActualizados = {...datos};
         const cursoIndex = datosActualizados.cursos.findIndex((c: any) => c.curso === cursoSel);
         if (cursoIndex !== -1) datosActualizados.cursos[cursoIndex].completado = true;
@@ -215,7 +228,7 @@ export default function Formulario() {
           setTimeout(() => window.location.href = '/', 5000);
         }
       } else {
-        throw new Error(result.error || 'Error al enviar la encuesta');
+        throw new Error(result.mensaje || result.error || 'Error al enviar la encuesta');
       }
 
     } catch (error: any) {
@@ -252,12 +265,11 @@ export default function Formulario() {
         </div>
       </header>
 
-      {/* 🔴 CORREGIDO: main ahora centra el contenido horizontalmente */}
       <main style={{ 
         flex: 1, 
         padding: '40px 20px', 
         display: 'flex', 
-        justifyContent: 'center'  // 🔴 Esto centra el contenido
+        justifyContent: 'center'
       }}>
         <div style={{ width: '100%', maxWidth: '680px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 6px rgba(32,33,36,0.28)', overflow: 'hidden' }}>
           <div style={{ backgroundColor: '#5a2290', color: 'white', padding: '32px 48px', textAlign: 'center' }}>
