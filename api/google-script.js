@@ -9,9 +9,9 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Manejar GET
-  if (req.method === 'GET') {
-    try {
+  try {
+    // Manejar GET
+    if (req.method === 'GET') {
       const { scriptUrl, action, periodo, email, spreadsheetId } = req.query;
       
       if (!scriptUrl) {
@@ -35,29 +35,25 @@ export default async function handler(req, res) {
       const data = await response.json();
       
       return res.status(200).json(data);
-      
-    } catch (error) {
-      console.error('❌ Error GET:', error);
-      return res.status(500).json({ success: false, error: error.message });
     }
-  }
-  
-  // Manejar POST
-  if (req.method === 'POST') {
-    try {
+    
+    // Manejar POST
+    if (req.method === 'POST') {
       const { scriptUrl, spreadsheetId, action, data, ...bodyData } = req.body;
+      
+      console.log('📤 POST recibido:', { scriptUrl, spreadsheetId, action });
       
       if (!scriptUrl) {
         return res.status(400).json({ error: 'Falta scriptUrl' });
       }
       
-      console.log('📤 POST recibido:', { scriptUrl, spreadsheetId, action });
-      
-      let targetUrl = scriptUrl;
-      
-      if (spreadsheetId) {
-        const separator = targetUrl.includes('?') ? '&' : '?';
-        targetUrl += `${separator}spreadsheetId=${encodeURIComponent(spreadsheetId)}`;
+      // Si es una acción que maneja el proxy directamente
+      if (action === 'testConexion') {
+        return res.status(200).json({ 
+          success: true, 
+          mensaje: 'Proxy funcionando correctamente',
+          timestamp: new Date().toISOString()
+        });
       }
       
       // Construir payload para Google Apps Script
@@ -66,6 +62,7 @@ export default async function handler(req, res) {
       if (action === 'actualizarBase') {
         payload = {
           accion: 'actualizarBase',
+          spreadsheetId: spreadsheetId,
           data: data || []
         };
       } else if (action === 'crearHojaCalculo') {
@@ -79,24 +76,41 @@ export default async function handler(req, res) {
           preguntas: bodyData.preguntas || []
         };
       } else {
+        // Otras acciones (guardarEncuesta, verificarEstudiante, etc.)
         payload = bodyData;
+        // Asegurar que tenga accion
+        if (!payload.accion && action) {
+          payload.accion = action;
+        }
+      }
+      
+      // Construir URL final
+      let targetUrl = scriptUrl;
+      if (spreadsheetId && !action?.includes('actualizarBase')) {
+        const separator = targetUrl.includes('?') ? '&' : '?';
+        targetUrl += `${separator}spreadsheetId=${encodeURIComponent(spreadsheetId)}`;
       }
       
       console.log('📤 Enviando a GAS:', targetUrl);
-      console.log('📦 Payload:', JSON.stringify(payload).substring(0, 500));
+      console.log('📦 Payload:', JSON.stringify(payload).substring(0, 300));
       
+      // Hacer la petición a Google Apps Script
       const response = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
       
       const text = await response.text();
       console.log('📥 Respuesta cruda de GAS:', text.substring(0, 500));
       
-      let data;
+      // Intentar parsear JSON
+      let dataResult;
       try {
-        data = JSON.parse(text);
+        dataResult = JSON.parse(text);
       } catch (e) {
         console.error('❌ GAS no devolvió JSON:', text);
         return res.status(500).json({ 
@@ -106,26 +120,31 @@ export default async function handler(req, res) {
         });
       }
       
-      // Si es actualizarBase, formatear respuesta
+      // Formatear respuesta según acción
       if (action === 'actualizarBase') {
         return res.status(200).json({
           success: true,
-          agregados: data.agregados || data.data?.length || 0,
-          mensaje: data.mensaje || 'Base actualizada',
-          ...data
+          agregados: dataResult.agregados || data?.length || 0,
+          duplicados: dataResult.duplicados || 0,
+          mensaje: dataResult.mensaje || 'Base actualizada',
+          ...dataResult
         });
       }
       
-      return res.status(200).json(data);
+      if (action === 'crearHojaCalculo') {
+        return res.status(200).json(dataResult);
+      }
       
-    } catch (error) {
-      console.error('❌ Error POST:', error);
-      return res.status(500).json({ 
-        success: false, 
-        error: error.message 
-      });
+      return res.status(200).json(dataResult);
     }
+    
+    return res.status(405).json({ error: 'Método no permitido' });
+    
+  } catch (error) {
+    console.error('❌ Error en handler:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Error interno del servidor'
+    });
   }
-  
-  return res.status(405).json({ error: 'Método no permitido' });
 }
