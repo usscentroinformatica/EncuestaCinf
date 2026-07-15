@@ -91,7 +91,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // CREAR HOJA DE CÁLCULO (CORREGIDO)
+  // CREAR HOJA DE CÁLCULO (DIRECTO A GAS)
   // ============================================
   
   const crearNuevaHoja = async () => {
@@ -109,12 +109,12 @@ const AdminPanel = () => {
     setMensaje('🔄 Creando nueva hoja de cálculo...');
 
     try {
-      const PROXY_URL = '/api/google-script';
+      // 🔥 LLAMAR DIRECTAMENTE A GAS (sin proxy)
+      const targetUrl = googleScriptUrl;
       
-      const datosParaProxy = {
-        scriptUrl: googleScriptUrl,
-        action: 'crearHojaCalculo',
-        nombre: periodo, // Usa el período como nombre
+      const payload = {
+        accion: 'crearHojaCalculo',
+        nombre: periodo,
         titulo: 'ENCUESTA DE SATISFACCIÓN DOCENTE',
         subtitulo: periodo,
         hojaBase: 'BaseUnificada',
@@ -129,18 +129,28 @@ const AdminPanel = () => {
         ]
       };
 
-      console.log('📤 Enviando al proxy:', datosParaProxy);
+      console.log('📤 Enviando a GAS:', targetUrl);
+      console.log('📦 Payload:', payload);
 
-      const response = await fetch(PROXY_URL, {
+      const response = await fetch(targetUrl, {
         method: 'POST',
+        mode: 'cors',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(datosParaProxy)
+        body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
-      console.log('📥 Respuesta:', result);
+      const text = await response.text();
+      console.log('📥 Respuesta cruda:', text.substring(0, 500));
+      
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        console.error('❌ No es JSON:', text);
+        throw new Error('El servidor no devolvió JSON válido');
+      }
 
       if (result && result.exito === true) {
         const newSpreadsheetId = result.spreadsheetId;
@@ -178,7 +188,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // PROCESAR EXCEL (CORREGIDO)
+  // PROCESAR EXCEL
   // ============================================
 
   const procesarExcel = (file: File) => {
@@ -224,19 +234,13 @@ const AdminPanel = () => {
         if (jsonData.length > 0 && jsonData[0]) {
           const columnas = Object.keys(jsonData[0] as Record<string, any>);
           console.log('📋 Columnas encontradas:', columnas);
-          
-          if (columnas.includes('EMaiCrec')) {
-            console.log('✅ EMaiCrec ENCONTRADO en el archivo');
-          } else {
-            console.warn('⚠️ EMaiCrec NO ENCONTRADO. Columnas:', columnas);
-          }
         }
         
-        // Mapear datos correctamente
+        // Mapear datos
         const estudiantes = jsonData
           .map((row: any) => ({
-            correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || row['EMail1']?.trim() || row['EMail2']?.trim() || '',
-            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || row['NombreCompleto'] || '',
+            correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || '',
+            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
             planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
             curso: row['Curso'] || '',
             seccion: row['Seccion'] || row['PEAD'] || '',
@@ -247,8 +251,6 @@ const AdminPanel = () => {
             const tieneNombre = est.nombre && est.nombre.length > 0;
             return tieneCorreo && tieneNombre;
           });
-        
-        console.log(`✅ Registros válidos: ${estudiantes.length}`);
         
         // Eliminar duplicados
         const uniqueEstudiantes = [];
@@ -263,14 +265,7 @@ const AdminPanel = () => {
         }
         
         setPreviewData(uniqueEstudiantes);
-        setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
-        
-        if (uniqueEstudiantes.length > 0) {
-          console.log('🔍 Primeros 3 registros:');
-          uniqueEstudiantes.slice(0, 3).forEach((est, i) => {
-            console.log(`  ${i+1}. ${est.correo} - ${est.nombre}`);
-          });
-        }
+        setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales)`);
         
       } catch (error: any) {
         console.error('❌ Error:', error);
@@ -288,7 +283,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // ACTUALIZAR BASE UNIFICADA (CORREGIDO)
+  // ACTUALIZAR BASE UNIFICADA (DIRECTO A GAS)
   // ============================================
 
   const actualizarBaseUnificada = async () => {
@@ -313,22 +308,25 @@ const AdminPanel = () => {
     try {
       const spreadsheetIdActual = spreadsheetId || configActual?.spreadsheetId;
       
-      // Llamar directamente al Google Apps Script (evita problemas con el proxy)
-      const targetUrl = `${googleScriptUrl}`;
+      // 🔥 LLAMAR DIRECTAMENTE A GAS (sin proxy)
+      const targetUrl = googleScriptUrl;
       
-      console.log('📤 Llamando a GAS:', targetUrl);
-      console.log('📊 Datos a enviar:', previewData.length, 'registros');
-      
+      const payload = {
+        accion: 'actualizarBase',
+        spreadsheetId: spreadsheetIdActual,
+        data: previewData
+      };
+
+      console.log('📤 Enviando a GAS:', targetUrl);
+      console.log('📦 Payload:', payload);
+
       const response = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json' 
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          accion: 'actualizarBase',
-          spreadsheetId: spreadsheetIdActual,
-          data: previewData
-        })
+        body: JSON.stringify(payload)
       });
 
       const text = await response.text();
@@ -345,7 +343,6 @@ const AdminPanel = () => {
       if (result.exito) {
         setMensaje(`✅ ¡BaseUnificada actualizada! ${result.agregados || previewData.length} estudiantes registrados. Duplicados: ${result.duplicados || 0}`);
         setPreviewData([]);
-        // Resetear el input file
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -363,7 +360,7 @@ const AdminPanel = () => {
   };
 
   // ============================================
-  // COMPONENTE PASO INDICATOR
+  // PASO INDICATOR
   // ============================================
 
   const PasoIndicator = ({ numero, titulo, activo, completado, onClick }: { numero: number; titulo: string; activo: boolean; completado: boolean; onClick: () => void }) => (
@@ -417,7 +414,7 @@ const AdminPanel = () => {
   );
 
   // ============================================
-  // RENDER PRINCIPAL
+  // RENDER
   // ============================================
 
   return (
