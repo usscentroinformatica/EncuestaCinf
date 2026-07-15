@@ -18,7 +18,6 @@ const AdminPanel = () => {
   const [editandoUrl, setEditandoUrl] = useState(false);
   const [editandoPeriodo, setEditandoPeriodo] = useState(false);
 
-  // 🔥 REFERENCIA AL INPUT FILE
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cerrarSesion = () => {
@@ -89,6 +88,10 @@ const AdminPanel = () => {
     }
   };
 
+  // ============================================
+  // 🔥 FUNCIÓN CORREGIDA - CREAR HOJA
+  // ============================================
+  
   const crearNuevaHoja = async () => {
     if (!periodo.trim()) {
       setMensaje('❌ Ingresa el nombre del período primero');
@@ -105,37 +108,65 @@ const AdminPanel = () => {
 
     try {
       const PROXY_URL = '/api/google-script';
-      const params = new URLSearchParams();
-      params.append('scriptUrl', googleScriptUrl);
-      params.append('action', 'crearHoja');
-      params.append('periodo', periodo);
       
-      const url = `${PROXY_URL}?${params.toString()}`;
-      
-      const response = await fetch(url);
-      const result = await response.json();
+      // 🔥 DATOS PARA EL PROXY (igual que en la consola)
+      const datosParaProxy = {
+        scriptUrl: googleScriptUrl,
+        accion: 'crearHojaCalculo',
+        nombre: 'Encuesta ' + new Date().toLocaleDateString('es-ES'),
+        titulo: 'ENCUESTA DE SATISFACCIÓN DOCENTE',
+        subtitulo: periodo,
+        hojaBase: 'BaseUnificada',
+        hojaRespuestas: 'Respuestas',
+        preguntas: [
+          'P1: Puntualidad',
+          'P2: Claridad en la exposición',
+          'P3: Relación teoría-práctica',
+          'P4: Participación en clase',
+          'P5: Respuesta a correos',
+          'P6: Nivel de estrellas'
+        ]
+      };
 
-      if (result.success) {
-        const newSpreadsheetId = result.spreadsheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)[1];
+      console.log('📤 Enviando al proxy:', datosParaProxy);
+
+      // 🔥 USAR POST (no GET)
+      const response = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(datosParaProxy)
+      });
+
+      console.log('📥 Status:', response.status);
+      
+      const result = await response.json();
+      console.log('📥 Respuesta:', result);
+
+      if (result && result.exito === true) {
+        const newSpreadsheetId = result.spreadsheetId;
+        const spreadsheetUrl = result.spreadsheetUrl;
         
+        // Guardar en Firebase
         const configRef = ref(db, 'encuesta-config/config');
         await set(configRef, {
           googleScriptUrl: googleScriptUrl,
-          spreadsheetUrl: result.spreadsheetUrl,
+          spreadsheetUrl: spreadsheetUrl,
           spreadsheetId: newSpreadsheetId,
           periodo: periodo,
           fechaActualizacion: new Date().toISOString()
         });
 
         setSpreadsheetId(newSpreadsheetId);
-        setMensaje(`✅ ¡Hoja creada!\n📊 ${result.spreadsheetUrl}`);
+        setMensaje(`✅ ¡Hoja creada!\n📊 ${spreadsheetUrl}`);
         setPasoActual(3);
         
         setTimeout(() => {
           cargarConfiguracion();
         }, 2000);
       } else {
-        throw new Error(result.error || 'Error al crear la hoja');
+        throw new Error(result?.mensaje || result?.error || 'Error al crear la hoja');
       }
 
     } catch (error: any) {
@@ -146,120 +177,113 @@ const AdminPanel = () => {
     }
   };
 
+  // ============================================
+  // FUNCIONES PARA EXCEL
+  // ============================================
+
   const procesarExcel = (file: File) => {
-  // 🔥 FORZAR LIMPIEZA TOTAL
-  setPreviewData([]);
-  setMensaje('');
-  
-  // 🔥 FORZAR RESET DEL INPUT
-  const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-  if (fileInput) {
-    fileInput.value = '';
-  }
-  
-  // 🔥 LIMPIAR LOCALSTORAGE
-  localStorage.removeItem('previewData');
-  sessionStorage.removeItem('previewData');
-  
-  // Verificar que el archivo no esté vacío
-  if (!file || file.size === 0) {
-    setMensaje('❌ El archivo está vacío');
-    return;
-  }
-
-  // Verificar extensión
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
-    setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
-    return;
-  }
-
-  setMensaje(`🔄 Procesando "${file.name}"...`);
-
-  const reader = new FileReader();
-  
-  reader.onload = (e) => {
-    try {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      console.log('📚 Hojas encontradas:', workbook.SheetNames);
-      
-      // 🔥 USAR LA PRIMERA HOJA
-      const sheetName = workbook.SheetNames[0];
-      const hojaData = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(hojaData);
-      
-      console.log('📄 Total de filas:', jsonData.length);
-      
-      // 🔥 VERIFICAR QUE EMaiCrec EXISTA - CORREGIDO
-      if (jsonData.length > 0 && jsonData[0]) {
-        const columnas = Object.keys(jsonData[0] as Record<string, any>);
-        console.log('📋 Columnas encontradas:', columnas);
-        
-        if (columnas.includes('EMaiCrec')) {
-          console.log('✅ EMaiCrec ENCONTRADO en el archivo');
-        } else {
-          console.warn('⚠️ EMaiCrec NO ENCONTRADO. Columnas:', columnas);
-        }
-      }
-      
-      // 🔥 MAPEAR DATOS - EMaiCrec es el PRIMERO
-      const estudiantes = jsonData
-        .map((row: any) => ({
-          correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || row['EMail1']?.trim() || row['EMail2']?.trim() || '',
-          nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
-          planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
-          curso: row['Curso'] || '',
-          seccion: row['Seccion'] || row['PEAD'] || '',
-          docente: row['Docente'] || ''
-        }))
-        .filter(est => {
-          const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
-          const tieneNombre = est.nombre && est.nombre.length > 0;
-          return tieneCorreo && tieneNombre;
-        });
-      
-      console.log(`✅ Registros válidos: ${estudiantes.length}`);
-      
-      // 🔥 ELIMINAR DUPLICADOS
-      const uniqueEstudiantes = [];
-      const emailsVistos = new Set();
-      
-      for (const est of estudiantes) {
-        const emailLower = est.correo.toLowerCase();
-        if (!emailsVistos.has(emailLower)) {
-          emailsVistos.add(emailLower);
-          uniqueEstudiantes.push(est);
-        }
-      }
-      
-      // 🔥 ACTUALIZAR CON DATOS NUEVOS
-      setPreviewData(uniqueEstudiantes);
-      setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
-      
-      // 🔥 MOSTRAR PRIMEROS 3 REGISTROS PARA VERIFICAR
-      if (uniqueEstudiantes.length > 0) {
-        console.log('🔍 Primeros 3 registros:');
-        uniqueEstudiantes.slice(0, 3).forEach((est, i) => {
-          console.log(`  ${i+1}. ${est.correo} - ${est.nombre}`);
-        });
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Error:', error);
-      setMensaje(`❌ Error: ${error.message}`);
-      setPreviewData([]);
-    }
-  };
-  
-  reader.onerror = () => {
-    setMensaje('❌ Error al leer el archivo');
     setPreviewData([]);
+    setMensaje('');
+    
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+    
+    localStorage.removeItem('previewData');
+    sessionStorage.removeItem('previewData');
+    
+    if (!file || file.size === 0) {
+      setMensaje('❌ El archivo está vacío');
+      return;
+    }
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
+      setMensaje('❌ Formato no válido. Usa .xlsx, .xls o .csv');
+      return;
+    }
+
+    setMensaje(`🔄 Procesando "${file.name}"...`);
+
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        console.log('📚 Hojas encontradas:', workbook.SheetNames);
+        
+        const sheetName = workbook.SheetNames[0];
+        const hojaData = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(hojaData);
+        
+        console.log('📄 Total de filas:', jsonData.length);
+        
+        if (jsonData.length > 0 && jsonData[0]) {
+          const columnas = Object.keys(jsonData[0] as Record<string, any>);
+          console.log('📋 Columnas encontradas:', columnas);
+          
+          if (columnas.includes('EMaiCrec')) {
+            console.log('✅ EMaiCrec ENCONTRADO en el archivo');
+          } else {
+            console.warn('⚠️ EMaiCrec NO ENCONTRADO. Columnas:', columnas);
+          }
+        }
+        
+        const estudiantes = jsonData
+          .map((row: any) => ({
+            correo: row['EMaiCrec']?.trim() || row['Correo']?.trim() || row['Email']?.trim() || row['EMail1']?.trim() || row['EMail2']?.trim() || '',
+            nombre: `${row['Apellido'] || ''} ${row['Nombre'] || ''}`.trim() || row['Nombre'] || '',
+            planEstudio: row['PlanEst'] || row['PlanEstudio'] || '',
+            curso: row['Curso'] || '',
+            seccion: row['Seccion'] || row['PEAD'] || '',
+            docente: row['Docente'] || ''
+          }))
+          .filter(est => {
+            const tieneCorreo = est.correo && est.correo.includes('@') && est.correo.length > 5;
+            const tieneNombre = est.nombre && est.nombre.length > 0;
+            return tieneCorreo && tieneNombre;
+          });
+        
+        console.log(`✅ Registros válidos: ${estudiantes.length}`);
+        
+        const uniqueEstudiantes = [];
+        const emailsVistos = new Set();
+        
+        for (const est of estudiantes) {
+          const emailLower = est.correo.toLowerCase();
+          if (!emailsVistos.has(emailLower)) {
+            emailsVistos.add(emailLower);
+            uniqueEstudiantes.push(est);
+          }
+        }
+        
+        setPreviewData(uniqueEstudiantes);
+        setMensaje(`📊 ${uniqueEstudiantes.length} registros válidos (de ${jsonData.length} filas totales) - Archivo: ${file.name}`);
+        
+        if (uniqueEstudiantes.length > 0) {
+          console.log('🔍 Primeros 3 registros:');
+          uniqueEstudiantes.slice(0, 3).forEach((est, i) => {
+            console.log(`  ${i+1}. ${est.correo} - ${est.nombre}`);
+          });
+        }
+        
+      } catch (error: any) {
+        console.error('❌ Error:', error);
+        setMensaje(`❌ Error: ${error.message}`);
+        setPreviewData([]);
+      }
+    };
+    
+    reader.onerror = () => {
+      setMensaje('❌ Error al leer el archivo');
+      setPreviewData([]);
+    };
+    
+    reader.readAsArrayBuffer(file);
   };
-  
-  reader.readAsArrayBuffer(file);
-};
 
   const actualizarBaseUnificada = async () => {
     if (!googleScriptUrl) {
@@ -312,6 +336,10 @@ const AdminPanel = () => {
     }
   };
 
+  // ============================================
+  // COMPONENTE PASO INDICATOR
+  // ============================================
+
   const PasoIndicator = ({ numero, titulo, activo, completado, onClick }: { numero: number; titulo: string; activo: boolean; completado: boolean; onClick: () => void }) => (
     <div 
       onClick={onClick}
@@ -361,6 +389,10 @@ const AdminPanel = () => {
       )}
     </div>
   );
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   return (
     <div style={{ 
@@ -713,7 +745,7 @@ const AdminPanel = () => {
                   transition: 'all 0.3s ease'
                 }}>
                   <input
-                    ref={fileInputRef}  // 🔥 REFERENCIA AL INPUT
+                    ref={fileInputRef}
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => {
